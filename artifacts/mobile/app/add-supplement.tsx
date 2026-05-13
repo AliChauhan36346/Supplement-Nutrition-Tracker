@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,6 +21,7 @@ import {
   useSupplements,
 } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
+import { consumeScanResult } from "@/utils/scanStore";
 
 const CATEGORIES: SupplementCategory[] = [
   "Vitamin", "Mineral", "Protein", "Herb", "Medication", "Other",
@@ -136,6 +138,34 @@ export default function AddSupplementScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
+  useFocusEffect(
+    useCallback(() => {
+      const scanned = consumeScanResult();
+      if (scanned) {
+        if (scanned.name) setName(scanned.name);
+        if (scanned.brand) setBrand(scanned.brand);
+      }
+    }, [])
+  );
+
+  function handleScanPress() {
+    if (!profile.isPremium) {
+      Alert.alert(
+        "Premium Feature",
+        "Barcode scanning is available on the Premium plan. Upgrade to instantly fill supplement details by scanning the bottle.",
+        [
+          { text: "Maybe Later", style: "cancel" },
+          {
+            text: "Upgrade to Premium",
+            onPress: () => router.push("/(tabs)/profile"),
+          },
+        ]
+      );
+      return;
+    }
+    router.push("/barcode-scanner");
+  }
+
   function validate(): boolean {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = "Name is required";
@@ -225,6 +255,70 @@ export default function AddSupplementScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <TouchableOpacity
+          onPress={handleScanPress}
+          activeOpacity={0.85}
+          style={[
+            styles.scanBanner,
+            {
+              backgroundColor: profile.isPremium
+                ? colors.primary + "15"
+                : colors.card,
+              borderColor: profile.isPremium ? colors.primary + "50" : colors.border,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.scanIconWrap,
+              {
+                backgroundColor: profile.isPremium
+                  ? colors.primary + "20"
+                  : colors.muted,
+                borderRadius: 10,
+              },
+            ]}
+          >
+            <Feather
+              name="camera"
+              size={22}
+              color={profile.isPremium ? colors.primary : colors.mutedForeground}
+            />
+          </View>
+          <View style={styles.scanText}>
+            <Text
+              style={[
+                styles.scanTitle,
+                {
+                  color: profile.isPremium
+                    ? colors.primary
+                    : colors.foreground,
+                },
+              ]}
+            >
+              Scan Barcode
+            </Text>
+            <Text style={[styles.scanSub, { color: colors.mutedForeground }]}>
+              {profile.isPremium
+                ? "Auto-fill details from the bottle"
+                : "Premium · Tap to unlock"}
+            </Text>
+          </View>
+          {profile.isPremium ? (
+            <Feather name="chevron-right" size={18} color={colors.primary} />
+          ) : (
+            <View
+              style={[
+                styles.lockBadge,
+                { backgroundColor: colors.warning + "20", borderRadius: 8 },
+              ]}
+            >
+              <Feather name="lock" size={14} color={colors.warning} />
+            </View>
+          )}
+        </TouchableOpacity>
+
         <View style={styles.field}>
           <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
             Name *
@@ -545,5 +639,38 @@ const styles = StyleSheet.create({
   colorSwatch: {
     width: 32,
     height: 32,
+  },
+  scanBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderWidth: 1,
+    gap: 12,
+  },
+  scanIconWrap: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  scanText: {
+    flex: 1,
+    gap: 2,
+  },
+  scanTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
+  },
+  scanSub: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+  },
+  lockBadge: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

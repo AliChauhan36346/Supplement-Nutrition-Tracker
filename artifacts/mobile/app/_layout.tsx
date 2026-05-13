@@ -37,6 +37,10 @@ function RootLayoutNav() {
         name="ai-coach"
         options={{ presentation: "modal", headerShown: false }}
       />
+      <Stack.Screen
+        name="barcode-scanner"
+        options={{ presentation: "fullScreenModal", headerShown: false }}
+      />
     </Stack>
   );
 }
