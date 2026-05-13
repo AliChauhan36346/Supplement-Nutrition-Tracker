@@ -1,0 +1,347 @@
+Build a modern cross-platform mobile app called **Supplement Tracker Pro** for iOS and Android. The app should help users consistently take vitamins, supplements, protein, medicine, and wellness products through reminders, habit tracking, refill alerts, and progress insights. Design it as a polished subscription-ready app with strong retention, clean UX, and scalable architecture.
+
+## Core Goal
+
+Users often forget to take supplements or stop after a few days. This app solves consistency and adherence through smart reminders, streaks, education, and tracking.
+
+---
+
+## Target Audience
+
+* Gym users taking protein / creatine / pre-workout
+* General health users taking vitamins
+* Elderly users taking daily supplements
+* Busy professionals
+* Users managing multiple supplements
+* Parents managing family supplements
+
+---
+
+## App Name Ideas
+
+* Supplement Tracker Pro
+* Vitafy
+* DoseHabit
+* NutriReminder
+* Daily Stack
+
+Use a premium modern brand style.
+
+---
+
+## Core Features (MVP)
+
+### 1. Onboarding Flow
+
+Ask:
+
+* Goal: Energy / Fitness / Immunity / General Health / Weight Loss
+* Age range
+* Gender (optional)
+* Number of supplements used
+* Reminder preference
+* Timezone auto-detect
+
+Then personalize dashboard.
+
+---
+
+### 2. Add Supplement
+
+Allow adding supplements manually or by search.
+
+Fields:
+
+* Supplement name
+* Category (Vitamin, Mineral, Protein, Herb, Medication, Other)
+* Dosage
+* Units (mg, mcg, g, capsule, tablet, scoop, ml)
+* Frequency:
+
+  * Once daily
+  * Twice daily
+  * Custom days
+  * Weekly
+  * Monthly
+* Time(s)
+* With food / before food / after food
+* Notes
+* Start date
+* End date optional
+
+---
+
+### 3. Barcode Scanner
+
+Use camera to scan bottle barcode and auto-fill:
+
+* Product name
+* Brand
+* Serving size
+
+Fallback to manual input.
+
+---
+
+### 4. Smart Reminder System
+
+Push notifications:
+
+* Time to take Vitamin D
+* Time for Creatine
+* Refill needed soon
+
+Actions inside notification:
+
+* Mark Taken
+* Snooze 10 min
+* Skip
+
+Reminder logic:
+
+* If user ignores repeatedly, optimize future reminder timing.
+
+---
+
+### 5. Daily Dashboard
+
+Show:
+
+* Today’s supplement schedule
+* Pending doses
+* Completed doses
+* Current streak
+* Adherence % this week
+* Quick tap “Taken”
+
+Use cards + timeline UI.
+
+---
+
+### 6. History & Calendar
+
+Calendar showing:
+
+* Green = completed
+* Yellow = partial
+* Red = missed
+
+Tap date to see details.
+
+---
+
+### 7. Streak & Gamification
+
+* Daily streak counter
+* Weekly consistency badge
+* 30-day challenge
+* Milestones
+* XP points
+
+---
+
+### 8. Refill Tracker
+
+Each supplement stores bottle quantity.
+
+Example:
+60 capsules / 2 daily = refill alert in 30 days.
+
+Send alerts 7 days before running out.
+
+---
+
+### 9. Insights & Analytics
+
+Charts for:
+
+* Adherence %
+* Missed doses
+* Best consistency time
+* Monthly streaks
+
+Recommendations:
+“You take supplements more consistently at 8am.”
+
+---
+
+### 10. Family Mode
+
+Allow managing supplements for:
+
+* Parents
+* Children
+* Partner
+
+Separate profiles.
+
+---
+
+## Premium Features (Subscription)
+
+### Free Plan
+
+* Up to 3 supplements
+* Basic reminders
+* Basic streaks
+
+### Premium Plan
+
+* Unlimited supplements
+* Barcode scanner
+* Advanced analytics
+* Family mode
+* Smart reminders
+* Export PDF reports
+* Cloud sync
+* Themes
+* AI supplement assistant
+
+Use monthly + yearly pricing.
+
+---
+
+## AI Features
+
+### AI Supplement Coach
+
+Chat assistant that helps users:
+
+* Build routines
+* Improve consistency
+* Suggest reminder times
+* Explain supplement timing basics
+
+Never provide medical diagnosis.
+
+---
+
+## Screens / Navigation
+
+Bottom Tab Navigation:
+
+1. Home
+2. Supplements
+3. Calendar
+4. Insights
+5. Profile
+
+Additional screens:
+
+* Onboarding
+* Add Supplement
+* Edit Schedule
+* Paywall
+* Notifications settings
+* Family Profiles
+* AI Coach
+
+---
+
+## UI / UX Style
+
+Use:
+
+* Minimal clean health-tech design
+* Smooth animations
+* Soft gradients
+* Premium typography
+* Dark mode
+* High accessibility
+* Large tap targets
+
+Think Apple-quality UX.
+
+---
+
+## Retention Systems
+
+* Morning reminder nudges
+* Weekly report emails
+* Streak recovery feature
+* Motivational messages
+* Monthly health progress recap
+
+---
+
+## Tech Stack Suggestion
+
+Frontend:
+
+* Flutter OR React Native
+
+Backend:
+
+* Firebase / Supabase
+
+Use:
+
+* Push notifications
+* Authentication (Google / Apple / Email)
+* Cloud sync
+* In-app subscriptions
+
+Analytics:
+
+* Mixpanel / Firebase Analytics
+
+---
+
+## Monetization
+
+Implement:
+
+* Free trial 7 days
+* Monthly subscription
+* Annual subscription discounted
+* Lifetime plan optional
+
+Upsell triggers:
+
+* After adding 3rd supplement
+* After streak milestone
+* During refill planning
+
+---
+
+## Security & Privacy
+
+* HIPAA-style clean privacy principles
+* Local encrypted storage
+* Cloud sync opt-in
+* No selling user data
+
+---
+
+## App Store Optimization
+
+Keywords:
+supplement tracker, vitamin reminder, pill reminder, creatine tracker, medication reminder, habit supplement app
+
+---
+
+## Launch Strategy Built Into Product
+
+Add referral system:
+“Invite 3 friends = 1 month premium”
+
+Share streak cards on social media.
+
+---
+
+## Deliverables Needed
+
+Generate:
+
+1. Full mobile app UI screens
+2. Database schema
+3. Frontend code structure
+4. Backend architecture
+5. Notification logic
+6. Subscription paywall flow
+7. Clean production-ready code
+8. App icon ideas
+9. Launch-ready MVP roadmap
+10. Future v2 features
+
+Build it polished, addictive, modern, premium, and optimized for reaching $10k/month recurring revenue.
