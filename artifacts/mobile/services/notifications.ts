@@ -69,7 +69,6 @@ export async function scheduleSupplementNotifications(
               type: Notifications.SchedulableTriggerInputTypes.DAILY,
               hour,
               minute,
-              repeats: true,
             },
           });
           scheduled++;
@@ -88,7 +87,6 @@ export async function scheduleSupplementNotifications(
                 weekday: dow + 1,
                 hour,
                 minute,
-                repeats: true,
               },
             });
             scheduled++;
@@ -107,7 +105,6 @@ export async function scheduleSupplementNotifications(
               weekday: dow + 1,
               hour,
               minute,
-              repeats: true,
             },
           });
           scheduled++;

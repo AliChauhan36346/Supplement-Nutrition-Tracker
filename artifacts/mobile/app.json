@@ -23,7 +23,10 @@
       }
     },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/icon.png",
+      "themeColor": "#10B981",
+      "description": "Track your vitamins, supplements, and medications daily. Build healthy streaks, view your history, and get AI-powered coaching — all in one app.",
+      "lang": "en"
     },
     "plugins": [
       [

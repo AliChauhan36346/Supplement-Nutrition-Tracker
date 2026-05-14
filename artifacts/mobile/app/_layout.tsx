@@ -8,6 +8,7 @@ import {
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
+import Head from "expo-router/head";
 import * as SplashScreen from "expo-splash-screen";
 import * as SystemUI from "expo-system-ui";
 import React, { useEffect, useState } from "react";
@@ -84,8 +85,25 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary>
+    <>
+      <Head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Supplement Tracker Pro</title>
+        <meta
+          name="description"
+          content="Track your vitamins, supplements, and medications daily. Build healthy streaks, view your history, and get AI-powered coaching — all in one app."
+        />
+        <meta name="theme-color" content="#10B981" />
+        <meta property="og:title" content="Supplement Tracker Pro" />
+        <meta
+          property="og:description"
+          content="Track your vitamins, supplements, and medications daily. Build healthy streaks, view your history, and get AI-powered coaching — all in one app."
+        />
+        <meta property="og:type" content="website" />
+      </Head>
+      <SafeAreaProvider>
+        <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <SupplementProvider>
             <GestureHandlerRootView style={{ flex: 1 }}>
@@ -96,6 +114,7 @@ export default function RootLayout() {
           </SupplementProvider>
         </QueryClientProvider>
       </ErrorBoundary>
-    </SafeAreaProvider>
+      </SafeAreaProvider>
+    </>
   );
 }
