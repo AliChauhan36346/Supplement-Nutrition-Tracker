@@ -118,7 +118,7 @@ export default function AddSupplementScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { supplements, addSupplement, updateSupplement } = useSupplements();
+  const { supplements, addSupplement, updateSupplement, profile } = useSupplements();
   const existing = supplements.find((s) => s.id === id);
 
   const [name, setName] = useState(existing?.name ?? "");
