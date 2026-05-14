@@ -8,6 +8,8 @@ import React, {
   useState,
 } from "react";
 
+import { scheduleSupplementNotifications } from "@/services/notifications";
+
 export type SupplementCategory =
   | "Vitamin"
   | "Mineral"
@@ -161,6 +163,12 @@ export function SupplementProvider({
   const [doseLogs, setDoseLogs] = useState<DoseLog[]>([]);
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isLoading) {
+      scheduleSupplementNotifications(supplements);
+    }
+  }, [supplements, isLoading]);
 
   useEffect(() => {
     async function load() {

@@ -39,6 +39,14 @@
         {
           "cameraPermission": "Allow Supplement Tracker to access your camera to scan supplement barcodes."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#10B981",
+          "sounds": []
+        }
       ]
     ],
     "experiments": {

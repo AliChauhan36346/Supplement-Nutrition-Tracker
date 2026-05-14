@@ -18,6 +18,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SupplementProvider } from "@/context/SupplementContext";
+import { requestNotificationPermissions } from "@/services/notifications";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -63,6 +64,10 @@ export default function RootLayout() {
       colorScheme === "dark" ? "#0B1512" : "#F0FDF9"
     );
   }, [colorScheme]);
+
+  useEffect(() => {
+    requestNotificationPermissions();
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setTimedOut(true), 3000);
