@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 
+import { FREE_SUPPLEMENT_LIMIT } from "@/constants/limits";
 import { scheduleSupplementNotifications } from "@/services/notifications";
 
 export type SupplementCategory =
@@ -85,6 +86,8 @@ interface SupplementContextValue {
   doseLogs: DoseLog[];
   profile: UserProfile;
   isLoading: boolean;
+  canAddSupplement: boolean;
+  freeSupplementLimit: number;
   addSupplement: (s: Omit<Supplement, "id" | "createdAt">) => Promise<void>;
   updateSupplement: (id: string, updates: Partial<Supplement>) => Promise<void>;
   deleteSupplement: (id: string) => Promise<void>;
@@ -98,6 +101,7 @@ interface SupplementContextValue {
   getDayAdherence: (date: string) => number;
   getWeekAdherence: () => number[];
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  resetAllData: () => Promise<void>;
 }
 
 const SupplementContext = createContext<SupplementContextValue | null>(null);
@@ -205,8 +209,16 @@ export function SupplementProvider({
     setProfile(p);
   }, []);
 
+  const canAddSupplement =
+    profile.isPremium || supplements.length < FREE_SUPPLEMENT_LIMIT;
+
   const addSupplement = useCallback(
     async (s: Omit<Supplement, "id" | "createdAt">) => {
+      if (!profile.isPremium && supplements.length >= FREE_SUPPLEMENT_LIMIT) {
+        throw new Error(
+          `Free plan allows up to ${FREE_SUPPLEMENT_LIMIT} supplements. Upgrade to Premium for unlimited tracking.`
+        );
+      }
       const newSup: Supplement = {
         ...s,
         id: generateId(),
@@ -214,7 +226,7 @@ export function SupplementProvider({
       };
       await saveSupplements([...supplements, newSup]);
     },
-    [supplements, saveSupplements]
+    [supplements, saveSupplements, profile.isPremium]
   );
 
   const updateSupplement = useCallback(
@@ -361,12 +373,33 @@ export function SupplementProvider({
     [profile, saveProfile]
   );
 
+  const resetAllData = useCallback(async () => {
+    await Promise.all([
+      AsyncStorage.setItem(STORAGE_KEYS.supplements, JSON.stringify([])),
+      AsyncStorage.setItem(STORAGE_KEYS.doseLogs, JSON.stringify([])),
+      AsyncStorage.setItem(
+        STORAGE_KEYS.profile,
+        JSON.stringify(DEFAULT_PROFILE)
+      ),
+    ]);
+    setSupplements([]);
+    setDoseLogs([]);
+    setProfile(DEFAULT_PROFILE);
+    try {
+      await scheduleSupplementNotifications([]);
+    } catch {
+      // ignore notification cleanup failures
+    }
+  }, []);
+
   const value = useMemo<SupplementContextValue>(
     () => ({
       supplements,
       doseLogs,
       profile,
       isLoading,
+      canAddSupplement,
+      freeSupplementLimit: FREE_SUPPLEMENT_LIMIT,
       addSupplement,
       updateSupplement,
       deleteSupplement,
@@ -375,12 +408,14 @@ export function SupplementProvider({
       getDayAdherence,
       getWeekAdherence,
       updateProfile,
+      resetAllData,
     }),
     [
       supplements,
       doseLogs,
       profile,
       isLoading,
+      canAddSupplement,
       addSupplement,
       updateSupplement,
       deleteSupplement,
@@ -389,6 +424,7 @@ export function SupplementProvider({
       getDayAdherence,
       getWeekAdherence,
       updateProfile,
+      resetAllData,
     ]
   );
 

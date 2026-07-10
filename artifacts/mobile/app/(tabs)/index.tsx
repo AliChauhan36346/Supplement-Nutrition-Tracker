@@ -15,6 +15,7 @@ import { DoseItem } from "@/components/DoseItem";
 import { ProgressRing } from "@/components/ProgressRing";
 import { useSupplements } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
+import { promptFreeLimitReached, showPremiumUpsell } from "@/utils/premium";
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -26,7 +27,15 @@ function getGreeting(): string {
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { getScheduledDoses, getDayAdherence, logDose, profile, supplements } = useSupplements();
+  const {
+    getScheduledDoses,
+    getDayAdherence,
+    logDose,
+    profile,
+    supplements,
+    canAddSupplement,
+    updateProfile,
+  } = useSupplements();
 
   const today = new Date().toISOString().split("T")[0]!;
   const doses = useMemo(() => getScheduledDoses(today), [getScheduledDoses, today]);
@@ -39,6 +48,22 @@ export default function HomeScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  function openAddSupplement() {
+    if (!canAddSupplement) {
+      promptFreeLimitReached(() => updateProfile({ isPremium: true }));
+      return;
+    }
+    router.push("/add-supplement");
+  }
+
+  function openCoach() {
+    if (!profile.isPremium) {
+      showPremiumUpsell(() => updateProfile({ isPremium: true }));
+      return;
+    }
+    router.push("/ai-coach");
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -61,7 +86,7 @@ export default function HomeScreen() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={() => router.push("/ai-coach")}
+          onPress={openCoach}
           style={[
             styles.coachBtn,
             {
@@ -72,6 +97,14 @@ export default function HomeScreen() {
           activeOpacity={0.8}
         >
           <Feather name="message-circle" size={20} color={colors.primary} />
+          {!profile.isPremium && (
+            <View
+              style={[
+                styles.coachLock,
+                { backgroundColor: colors.warning },
+              ]}
+            />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -200,7 +233,7 @@ export default function HomeScreen() {
               Add your first supplement to get started.
             </Text>
             <TouchableOpacity
-              onPress={() => router.push("/add-supplement")}
+              onPress={openAddSupplement}
               style={[
                 styles.addBtn,
                 {
@@ -282,6 +315,14 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: "center",
     justifyContent: "center",
+  },
+  coachLock: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 16 },

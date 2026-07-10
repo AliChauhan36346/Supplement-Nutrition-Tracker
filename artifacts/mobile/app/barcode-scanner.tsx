@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { useSupplements } from "@/context/SupplementContext";
 
 interface ProductResult {
   barcode: string;
@@ -49,11 +50,18 @@ async function lookupBarcode(barcode: string): Promise<ProductResult> {
 export default function BarcodeScannerScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { profile } = useSupplements();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanning, setScanning] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ProductResult | null>(null);
   const lastScanned = useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (!profile.isPremium) {
+      router.replace("/add-supplement");
+    }
+  }, [profile.isPremium]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;

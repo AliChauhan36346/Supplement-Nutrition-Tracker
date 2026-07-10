@@ -21,6 +21,7 @@ import {
   useSupplements,
 } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
+import { promptFreeLimitReached, showPremiumUpsell } from "@/utils/premium";
 import { consumeScanResult } from "@/utils/scanStore";
 
 const CATEGORIES: SupplementCategory[] = [
@@ -118,7 +119,14 @@ export default function AddSupplementScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { supplements, addSupplement, updateSupplement, profile } = useSupplements();
+  const {
+    supplements,
+    addSupplement,
+    updateSupplement,
+    profile,
+    canAddSupplement,
+    updateProfile,
+  } = useSupplements();
   const existing = supplements.find((s) => s.id === id);
 
   const [name, setName] = useState(existing?.name ?? "");
@@ -150,17 +158,7 @@ export default function AddSupplementScreen() {
 
   function handleScanPress() {
     if (!profile.isPremium) {
-      Alert.alert(
-        "Premium Feature",
-        "Barcode scanning is available on the Premium plan. Upgrade to instantly fill supplement details by scanning the bottle.",
-        [
-          { text: "Maybe Later", style: "cancel" },
-          {
-            text: "Upgrade to Premium",
-            onPress: () => router.push("/(tabs)/profile"),
-          },
-        ]
-      );
+      showPremiumUpsell(() => updateProfile({ isPremium: true }));
       return;
     }
     router.push("/barcode-scanner");
@@ -176,6 +174,10 @@ export default function AddSupplementScreen() {
 
   async function handleSave() {
     if (!validate()) return;
+    if (!existing && !canAddSupplement) {
+      promptFreeLimitReached(() => updateProfile({ isPremium: true }));
+      return;
+    }
     const getDefaultTimes = (): string[] => {
       if (frequency === "twice_daily") return ["08:00", "20:00"];
       return times;
@@ -191,18 +193,28 @@ export default function AddSupplementScreen() {
       times: getDefaultTimes(),
       mealTiming,
       notes: notes.trim(),
-      startDate: today(),
+      startDate: existing?.startDate ?? today(),
+      endDate: existing?.endDate,
       bottleQuantity: bottleQty ? Number(bottleQty) : undefined,
-      remainingQuantity: bottleQty ? Number(bottleQty) : undefined,
+      remainingQuantity: bottleQty
+        ? Number(bottleQty)
+        : existing?.remainingQuantity,
       color,
       isActive: true,
     };
-    if (existing) {
-      await updateSupplement(existing.id, data);
-    } else {
-      await addSupplement(data);
+    try {
+      if (existing) {
+        await updateSupplement(existing.id, data);
+      } else {
+        await addSupplement(data);
+      }
+      router.back();
+    } catch (err) {
+      Alert.alert(
+        "Could not save",
+        err instanceof Error ? err.message : "Please try again."
+      );
     }
-    router.back();
   }
 
   function updateTime(index: number, value: string) {

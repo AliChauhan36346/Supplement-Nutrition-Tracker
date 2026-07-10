@@ -83,7 +83,7 @@ const WELCOME: Message = {
   id: "welcome",
   role: "assistant",
   content:
-    "Hi! I'm your Supplement Coach. Ask me anything about timing, dosing, combinations, or building a consistent routine. Note: I provide general wellness information only — always consult a healthcare professional for medical advice.",
+    "Hi! I'm your Supplement Coach — a built-in tips guide (not live AI). Ask about timing, dosing, combinations, or building a consistent routine.\n\nImportant: I provide general wellness information only. Always consult a healthcare professional for medical advice.",
   ts: Date.now(),
 };
 
@@ -106,7 +106,7 @@ function getResponse(input: string, supplements: { name: string }[]): string {
 export default function AICoachScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { supplements } = useSupplements();
+  const { supplements, profile } = useSupplements();
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -114,6 +114,12 @@ export default function AICoachScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  React.useEffect(() => {
+    if (!profile.isPremium) {
+      router.replace("/(tabs)");
+    }
+  }, [profile.isPremium]);
 
   const sendMessage = useCallback(() => {
     const text = input.trim();
@@ -195,9 +201,9 @@ export default function AICoachScreen() {
             Supplement Coach
           </Text>
           <View style={styles.onlineRow}>
-            <View style={[styles.onlineDot, { backgroundColor: colors.success }]} />
+            <View style={[styles.onlineDot, { backgroundColor: colors.mutedForeground }]} />
             <Text style={[styles.onlineText, { color: colors.mutedForeground }]}>
-              Online
+              Tips guide · Not medical advice
             </Text>
           </View>
         </View>

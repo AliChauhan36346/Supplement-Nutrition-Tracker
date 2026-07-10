@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SupplementCard } from "@/components/SupplementCard";
 import { type SupplementCategory, useSupplements } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
+import { promptFreeLimitReached } from "@/utils/premium";
 
 const CATEGORIES: (SupplementCategory | "All")[] = [
   "All",
@@ -29,7 +30,15 @@ const CATEGORIES: (SupplementCategory | "All")[] = [
 export default function SupplementsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { supplements, deleteSupplement, getDayAdherence, doseLogs } = useSupplements();
+  const {
+    supplements,
+    deleteSupplement,
+    doseLogs,
+    canAddSupplement,
+    updateProfile,
+    freeSupplementLimit,
+    profile,
+  } = useSupplements();
   const [filter, setFilter] = useState<SupplementCategory | "All">("All");
 
   const filtered =
@@ -39,6 +48,14 @@ export default function SupplementsScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  function openAdd() {
+    if (!canAddSupplement) {
+      promptFreeLimitReached(() => updateProfile({ isPremium: true }));
+      return;
+    }
+    router.push("/add-supplement");
+  }
 
   function getAdherence(supplementId: string): number {
     const last7 = Array.from({ length: 7 }, (_, i) => {
@@ -82,11 +99,18 @@ export default function SupplementsScreen() {
           },
         ]}
       >
-        <Text style={[styles.title, { color: colors.foreground }]}>
-          My Supplements
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: colors.foreground }]}>
+            My Supplements
+          </Text>
+          {!profile.isPremium && (
+            <Text style={[styles.limitHint, { color: colors.mutedForeground }]}>
+              Free · {supplements.length}/{freeSupplementLimit} slots
+            </Text>
+          )}
+        </View>
         <TouchableOpacity
-          onPress={() => router.push("/add-supplement")}
+          onPress={openAdd}
           style={[
             styles.addBtn,
             { backgroundColor: colors.primary, borderRadius: colors.radius },
@@ -195,6 +219,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     fontFamily: "Inter_700Bold",
+  },
+  limitHint: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: 2,
   },
   addBtn: {
     flexDirection: "row",

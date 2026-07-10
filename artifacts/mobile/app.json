@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Supplement Tracker Pro",
-    "slug": "mobile",
+    "slug": "supplement-tracker-pro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "suptracker",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,18 +14,31 @@
       "backgroundColor": "#0B1512"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.suptracker.pro",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Supplement Tracker to access your camera to scan supplement barcodes.",
+        "NSUserNotificationsUsageDescription": "Allow Supplement Tracker to send reminders when it is time to take your supplements."
+      }
     },
     "android": {
+      "package": "com.suptracker.pro",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0B1512"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "SCHEDULE_EXACT_ALARM"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png",
       "themeColor": "#10B981",
-      "description": "Track your vitamins, supplements, and medications daily. Build healthy streaks, view your history, and get AI-powered coaching — all in one app.",
+      "description": "Track your vitamins, supplements, and medications daily. Build healthy streaks, view your history, and stay consistent — all in one app.",
       "lang": "en"
     },
     "plugins": [
@@ -52,6 +65,11 @@
         }
       ]
     ],
+    "extra": {
+      "eas": {
+        "projectId": "replace-with-eas-project-id"
+      }
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

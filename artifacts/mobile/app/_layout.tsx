@@ -36,6 +36,10 @@ function RootLayoutNav() {
         options={{ presentation: "modal", headerShown: false }}
       />
       <Stack.Screen
+        name="edit-profile"
+        options={{ presentation: "modal", headerShown: false }}
+      />
+      <Stack.Screen
         name="ai-coach"
         options={{ presentation: "modal", headerShown: false }}
       />
@@ -43,6 +47,9 @@ function RootLayoutNav() {
         name="barcode-scanner"
         options={{ presentation: "fullScreenModal", headerShown: false }}
       />
+      <Stack.Screen name="privacy" />
+      <Stack.Screen name="terms" />
+      <Stack.Screen name="disclaimer" />
     </Stack>
   );
 }
@@ -92,13 +99,13 @@ export default function RootLayout() {
         <title>Supplement Tracker Pro</title>
         <meta
           name="description"
-          content="Track your vitamins, supplements, and medications daily. Build healthy streaks, view your history, and get AI-powered coaching — all in one app."
+          content="Track your vitamins, supplements, and medications daily. Build healthy streaks, view your history, and stay consistent — all in one app."
         />
         <meta name="theme-color" content="#10B981" />
         <meta property="og:title" content="Supplement Tracker Pro" />
         <meta
           property="og:description"
-          content="Track your vitamins, supplements, and medications daily. Build healthy streaks, view your history, and get AI-powered coaching — all in one app."
+          content="Track your vitamins, supplements, and medications daily. Build healthy streaks, view your history, and stay consistent — all in one app."
         />
         <meta property="og:type" content="website" />
       </Head>

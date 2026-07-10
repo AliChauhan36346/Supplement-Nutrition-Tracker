@@ -1,19 +1,21 @@
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import {
   Alert,
   Platform,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { PREMIUM_FEATURES } from "@/constants/limits";
 import { useSupplements } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
+import { showPremiumUpsell } from "@/utils/premium";
 
 function SettingRow({
   icon,
@@ -21,29 +23,46 @@ function SettingRow({
   value,
   onPress,
   rightElement,
+  danger,
 }: {
   icon: string;
   label: string;
   value?: string;
   onPress?: () => void;
   rightElement?: React.ReactNode;
+  danger?: boolean;
 }) {
   const colors = useColors();
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
-      style={[
-        styles.settingRow,
-        { borderBottomColor: colors.border },
-      ]}
+      style={[styles.settingRow, { borderBottomColor: colors.border }]}
     >
-      <View style={[styles.settingIcon, { backgroundColor: colors.muted, borderRadius: 8 }]}>
-        <Feather name={icon as any} size={18} color={colors.primary} />
+      <View
+        style={[
+          styles.settingIcon,
+          { backgroundColor: colors.muted, borderRadius: 8 },
+        ]}
+      >
+        <Feather
+          name={icon as any}
+          size={18}
+          color={danger ? colors.destructive : colors.primary}
+        />
       </View>
-      <Text style={[styles.settingLabel, { color: colors.foreground }]}>{label}</Text>
+      <Text
+        style={[
+          styles.settingLabel,
+          { color: danger ? colors.destructive : colors.foreground },
+        ]}
+      >
+        {label}
+      </Text>
       {value ? (
-        <Text style={[styles.settingValue, { color: colors.mutedForeground }]}>{value}</Text>
+        <Text style={[styles.settingValue, { color: colors.mutedForeground }]}>
+          {value}
+        </Text>
       ) : null}
       {rightElement}
       {onPress && !rightElement && (
@@ -53,21 +72,16 @@ function SettingRow({
   );
 }
 
-const PREMIUM_FEATURES = [
-  "Unlimited supplements",
-  "Barcode scanner",
-  "Advanced analytics",
-  "Family mode",
-  "Smart reminders",
-  "Export PDF reports",
-  "Cloud sync",
-  "AI Supplement Coach",
-];
-
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { profile, updateProfile, supplements, doseLogs } = useSupplements();
+  const {
+    profile,
+    updateProfile,
+    supplements,
+    resetAllData,
+    freeSupplementLimit,
+  } = useSupplements();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -82,24 +96,24 @@ export default function ProfileScreen() {
 
   function handleReset() {
     Alert.alert(
-      "Reset Data",
-      "This will delete all your supplements, logs, and settings. Are you sure?",
+      "Reset All Data",
+      "This permanently deletes all supplements, dose history, streaks, and settings on this device.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Reset",
+          text: "Reset Everything",
           style: "destructive",
-          onPress: () =>
-            updateProfile({
-              onboardingComplete: false,
-              streak: 0,
-              longestStreak: 0,
-              xpPoints: 0,
-              isPremium: false,
-            }),
+          onPress: async () => {
+            await resetAllData();
+            router.replace("/onboarding");
+          },
         },
       ]
     );
+  }
+
+  function handleUpgrade() {
+    showPremiumUpsell(() => updateProfile({ isPremium: true }));
   }
 
   return (
@@ -138,12 +152,21 @@ export default function ProfileScreen() {
             Goal: {goalLabels[profile.goal] ?? profile.goal}
           </Text>
         ) : null}
+        {!profile.isPremium && (
+          <Text style={[styles.planHint, { color: colors.mutedForeground }]}>
+            Free plan · {supplements.length}/{freeSupplementLimit} supplements
+          </Text>
+        )}
 
         <View style={styles.statsRow}>
           <View
             style={[
               styles.statCard,
-              { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius },
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
             ]}
           >
             <Text style={[styles.statNum, { color: colors.primary }]}>
@@ -156,7 +179,11 @@ export default function ProfileScreen() {
           <View
             style={[
               styles.statCard,
-              { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius },
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
             ]}
           >
             <Text style={[styles.statNum, { color: colors.streak }]}>
@@ -169,7 +196,11 @@ export default function ProfileScreen() {
           <View
             style={[
               styles.statCard,
-              { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius },
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
             ]}
           >
             <Text style={[styles.statNum, { color: colors.foreground }]}>
@@ -183,19 +214,7 @@ export default function ProfileScreen() {
 
         {!profile.isPremium && (
           <TouchableOpacity
-            onPress={() =>
-              Alert.alert(
-                "Supplement Tracker Pro",
-                "Upgrade to access unlimited supplements, AI coaching, advanced analytics, and more.\n\nMonthly: $4.99\nYearly: $39.99 (save 33%)",
-                [
-                  { text: "Maybe Later", style: "cancel" },
-                  {
-                    text: "Start Free Trial",
-                    onPress: () => updateProfile({ isPremium: true }),
-                  },
-                ]
-              )
-            }
+            onPress={handleUpgrade}
             style={[
               styles.upgradeCard,
               {
@@ -206,14 +225,26 @@ export default function ProfileScreen() {
             activeOpacity={0.88}
           >
             <View>
-              <Text style={[styles.upgradeTitle, { color: colors.primaryForeground }]}>
+              <Text
+                style={[styles.upgradeTitle, { color: colors.primaryForeground }]}
+              >
                 Unlock Premium
               </Text>
-              <Text style={[styles.upgradeSub, { color: colors.primaryForeground + "CC" }]}>
-                7-day free trial · No commitment
+              <Text
+                style={[
+                  styles.upgradeSub,
+                  { color: colors.primaryForeground + "CC" },
+                ]}
+              >
+                Unlimited tracking · Barcode scan · Beta unlock
               </Text>
             </View>
-            <View style={[styles.upgradeBadge, { backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 8 }]}>
+            <View
+              style={[
+                styles.upgradeBadge,
+                { backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 8 },
+              ]}
+            >
               <Feather name="star" size={18} color={colors.primaryForeground} />
             </View>
           </TouchableOpacity>
@@ -232,7 +263,7 @@ export default function ProfileScreen() {
           >
             <Feather name="star" size={18} color={colors.streak} />
             <Text style={[styles.premiumText, { color: colors.streak }]}>
-              Premium Member
+              Premium (Beta)
             </Text>
           </View>
         )}
@@ -254,11 +285,16 @@ export default function ProfileScreen() {
             {PREMIUM_FEATURES.map((f) => (
               <View key={f} style={styles.featureRow}>
                 <Feather name="check" size={14} color={colors.primary} />
-                <Text style={[styles.featureText, { color: colors.mutedForeground }]}>
+                <Text
+                  style={[styles.featureText, { color: colors.mutedForeground }]}
+                >
                   {f}
                 </Text>
               </View>
             ))}
+            <Text style={[styles.betaNote, { color: colors.mutedForeground }]}>
+              In-app purchases will replace beta unlock before store launch.
+            </Text>
           </View>
         )}
 
@@ -279,23 +315,73 @@ export default function ProfileScreen() {
             icon="user"
             label="Name"
             value={profile.name ?? "Not set"}
+            onPress={() => router.push("/edit-profile")}
           />
           <SettingRow
             icon="target"
             label="Goal"
             value={profile.goal ? goalLabels[profile.goal] : "Not set"}
+            onPress={() => router.push("/edit-profile")}
           />
           <SettingRow
             icon="calendar"
             label="Age Range"
             value={profile.ageRange ?? "Not set"}
+            onPress={() => router.push("/edit-profile")}
           />
+        </View>
+
+        <View
+          style={[
+            styles.settingsGroup,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+            Legal
+          </Text>
+          <SettingRow
+            icon="alert-triangle"
+            label="Medical Disclaimer"
+            onPress={() => router.push("/disclaimer")}
+          />
+          <SettingRow
+            icon="shield"
+            label="Privacy Policy"
+            onPress={() => router.push("/privacy")}
+          />
+          <SettingRow
+            icon="file-text"
+            label="Terms of Service"
+            onPress={() => router.push("/terms")}
+          />
+        </View>
+
+        <View
+          style={[
+            styles.settingsGroup,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
           <SettingRow
             icon="trash-2"
             label="Reset All Data"
             onPress={handleReset}
+            danger
           />
         </View>
+
+        <Text style={[styles.version, { color: colors.mutedForeground }]}>
+          Supplement Tracker Pro · v1.0.0
+        </Text>
       </ScrollView>
     </View>
   );
@@ -334,6 +420,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_400Regular",
     marginTop: -8,
+  },
+  planHint: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: -10,
   },
   statsRow: {
     flexDirection: "row",
@@ -415,6 +506,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_400Regular",
   },
+  betaNote: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    marginTop: 4,
+    lineHeight: 16,
+  },
   settingsGroup: {
     width: "100%",
     padding: 16,
@@ -442,5 +539,12 @@ const styles = StyleSheet.create({
   settingValue: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
+    maxWidth: 120,
+    textAlign: "right",
+  },
+  version: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: 4,
   },
 });
