@@ -6,12 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "suptracker",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "cover",
-      "backgroundColor": "#0B1512"
+      "backgroundColor": "#F7FBF8"
     },
     "ios": {
       "supportsTablet": false,
@@ -25,7 +25,7 @@
       "package": "com.suptracker.pro",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#0B1512"
+        "backgroundColor": "#F7FBF8"
       },
       "permissions": [
         "CAMERA",

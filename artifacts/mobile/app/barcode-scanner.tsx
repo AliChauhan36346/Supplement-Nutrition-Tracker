@@ -4,7 +4,6 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Platform,
   StyleSheet,
   Text,
@@ -13,6 +12,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { GlossyLoader } from "@/components/GlossyLoader";
+import { PremiumBackground } from "@/components/PremiumBackground";
 import { useColors } from "@/hooks/useColors";
 import { useSupplements } from "@/context/SupplementContext";
 
@@ -100,7 +101,8 @@ export default function BarcodeScannerScreen() {
   if (!permission) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
+        <PremiumBackground />
+        <GlossyLoader label="Preparing camera…" />
       </View>
     );
   }
@@ -210,8 +212,7 @@ export default function BarcodeScannerScreen() {
               <View style={[styles.corner, styles.cornerBR]} />
               {loading && (
                 <View style={styles.loadingOverlay}>
-                  <ActivityIndicator color="#FFF" size="large" />
-                  <Text style={styles.loadingText}>Looking up product...</Text>
+                  <GlossyLoader label="Looking up product…" light />
                 </View>
               )}
             </View>

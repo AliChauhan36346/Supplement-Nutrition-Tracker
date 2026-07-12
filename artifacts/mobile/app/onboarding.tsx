@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AnimatedEntrance } from "@/components/AnimatedEntrance";
+import { PremiumBackground } from "@/components/PremiumBackground";
 import { useSupplements } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -59,6 +61,7 @@ export default function OnboardingScreen() {
         { backgroundColor: colors.background, paddingTop: topPad + 20, paddingBottom: botPad + 20 },
       ]}
     >
+      <PremiumBackground />
       <View style={styles.progressRow}>
         {Array.from({ length: totalSteps }).map((_, i) => (
           <View
@@ -79,6 +82,7 @@ export default function OnboardingScreen() {
         contentContainerStyle={styles.contentInner}
         showsVerticalScrollIndicator={false}
       >
+        <AnimatedEntrance key={step}>
         {step === 0 && (
           <View style={styles.stepContent}>
             <View
@@ -261,6 +265,7 @@ export default function OnboardingScreen() {
             </TouchableOpacity>
           </View>
         )}
+        </AnimatedEntrance>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -425,6 +430,11 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderWidth: 1,
+    shadowColor: "#397B61",
+    shadowOpacity: 0.08,
+    shadowRadius: 13,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
     alignItems: "center",
     justifyContent: "center",
   },

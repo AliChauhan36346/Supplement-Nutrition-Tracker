@@ -1,11 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -13,8 +14,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PREMIUM_FEATURES } from "@/constants/limits";
+import { PremiumBackground } from "@/components/PremiumBackground";
 import { useSupplements } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
+import { restorePurchases } from "@/services/iap";
+import {
+  getNotificationPermissionStatus,
+  requestNotificationPermissions,
+} from "@/services/notifications";
 import { showPremiumUpsell } from "@/utils/premium";
 
 function SettingRow({
@@ -82,6 +89,11 @@ export default function ProfileScreen() {
     resetAllData,
     freeSupplementLimit,
   } = useSupplements();
+  const [permStatus, setPermStatus] = useState<string>("undetermined");
+
+  useEffect(() => {
+    void getNotificationPermissionStatus().then(setPermStatus);
+  }, [profile.notificationsEnabled]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -113,11 +125,40 @@ export default function ProfileScreen() {
   }
 
   function handleUpgrade() {
-    showPremiumUpsell(() => updateProfile({ isPremium: true }));
+    void showPremiumUpsell(() => updateProfile({ isPremium: true }));
+  }
+
+  async function handleToggleNotifications(value: boolean) {
+    if (value) {
+      const granted = await requestNotificationPermissions();
+      setPermStatus(granted ? "granted" : "denied");
+      if (!granted) {
+        Alert.alert(
+          "Permission needed",
+          "Enable notifications in system settings to receive dose reminders."
+        );
+        await updateProfile({ notificationsEnabled: false });
+        return;
+      }
+    }
+    await updateProfile({ notificationsEnabled: value });
+  }
+
+  async function handleRestore() {
+    const result = await restorePurchases();
+    if (result.status === "restored") {
+      await updateProfile({ isPremium: true });
+      Alert.alert("Restored", "Premium is active.");
+      return;
+    }
+    if (result.status === "unavailable" || result.status === "error") {
+      Alert.alert("Restore", result.message);
+    }
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <PremiumBackground />
       <View
         style={[
           styles.header,
@@ -133,7 +174,7 @@ export default function ProfileScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad + 24 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad + 100 }]}
         showsVerticalScrollIndicator={false}
       >
         <View
@@ -236,7 +277,7 @@ export default function ProfileScreen() {
                   { color: colors.primaryForeground + "CC" },
                 ]}
               >
-                Unlimited tracking · Barcode scan · Beta unlock
+                30-day free trial, then monthly · Cancel anytime
               </Text>
             </View>
             <View
@@ -263,7 +304,7 @@ export default function ProfileScreen() {
           >
             <Feather name="star" size={18} color={colors.streak} />
             <Text style={[styles.premiumText, { color: colors.streak }]}>
-              Premium (Beta)
+              Premium
             </Text>
           </View>
         )}
@@ -292,9 +333,11 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             ))}
-            <Text style={[styles.betaNote, { color: colors.mutedForeground }]}>
-              In-app purchases will replace beta unlock before store launch.
-            </Text>
+            <TouchableOpacity onPress={handleRestore}>
+              <Text style={[styles.betaNote, { color: colors.primary }]}>
+                Restore purchases
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -309,8 +352,78 @@ export default function ProfileScreen() {
           ]}
         >
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+            Wellness Tools
+          </Text>
+          <SettingRow
+            icon="book-open"
+            label="Supplement Library"
+            value="Learn"
+            onPress={() => router.push("/supplement-library")}
+          />
+          <SettingRow
+            icon="clipboard"
+            label="Wellness Checkup"
+            value="Review gaps"
+            onPress={() => router.push("/wellness-checkup")}
+          />
+          <SettingRow
+            icon="clock"
+            label="Stack Planner"
+            value="Optimize timing"
+            onPress={() => router.push("/stack-planner")}
+          />
+        </View>
+
+        <View
+          style={[
+            styles.settingsGroup,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+            Notifications
+          </Text>
+          <SettingRow
+            icon="bell"
+            label="Dose reminders"
+            rightElement={
+              <Switch
+                value={profile.notificationsEnabled !== false}
+                onValueChange={handleToggleNotifications}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            }
+          />
+          <SettingRow
+            icon="info"
+            label="Permission"
+            value={permStatus}
+          />
+        </View>
+
+        <View
+          style={[
+            styles.settingsGroup,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
             Settings
           </Text>
+          <SettingRow
+            icon="cloud"
+            label="Account & Sync"
+            value={profile.email ?? "Offline"}
+            onPress={() => router.push("/account")}
+          />
           <SettingRow
             icon="user"
             label="Name"
@@ -392,7 +505,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingBottom: 14,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0,
   },
   title: {
     fontSize: 22,
@@ -410,6 +523,13 @@ const styles = StyleSheet.create({
     height: 80,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 4,
+    borderColor: "rgba(255,255,255,0.90)",
+    shadowColor: "#397B61",
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 9 },
+    elevation: 6,
   },
   name: {
     fontSize: 20,
@@ -437,6 +557,11 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     gap: 4,
+    shadowColor: "#397B61",
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   statNum: {
     fontSize: 22,
@@ -453,6 +578,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     padding: 18,
+    shadowColor: "#198A61",
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 7,
   },
   upgradeTitle: {
     fontSize: 17,
@@ -517,6 +647,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     gap: 0,
+    shadowColor: "#397B61",
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
   },
   settingRow: {
     flexDirection: "row",

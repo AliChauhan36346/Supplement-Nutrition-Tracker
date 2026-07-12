@@ -10,16 +10,21 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import Head from "expo-router/head";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import React, { useEffect, useState } from "react";
-import { Platform, useColorScheme } from "react-native";
+import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SupplementProvider } from "@/context/SupplementContext";
-import { requestNotificationPermissions } from "@/services/notifications";
+import { configureIAP } from "@/services/iap";
+import {
+  requestNotificationPermissions,
+  setupNotificationResponseHandler,
+} from "@/services/notifications";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -47,6 +52,13 @@ function RootLayoutNav() {
         name="barcode-scanner"
         options={{ presentation: "fullScreenModal", headerShown: false }}
       />
+      <Stack.Screen
+        name="account"
+        options={{ presentation: "modal", headerShown: false }}
+      />
+      <Stack.Screen name="supplement-library" />
+      <Stack.Screen name="wellness-checkup" />
+      <Stack.Screen name="stack-planner" />
       <Stack.Screen name="privacy" />
       <Stack.Screen name="terms" />
       <Stack.Screen name="disclaimer" />
@@ -55,7 +67,6 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const [timedOut, setTimedOut] = useState(false);
 
   const [fontsLoaded, fontError] = useFonts({
@@ -68,13 +79,13 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    SystemUI.setBackgroundColorAsync(
-      colorScheme === "dark" ? "#0B1512" : "#F0FDF9"
-    );
-  }, [colorScheme]);
+    SystemUI.setBackgroundColorAsync("#F7FBF8");
+  }, []);
 
   useEffect(() => {
-    requestNotificationPermissions();
+    void requestNotificationPermissions();
+    void configureIAP();
+    return setupNotificationResponseHandler();
   }, []);
 
   useEffect(() => {
@@ -93,6 +104,7 @@ export default function RootLayout() {
 
   return (
     <>
+      <StatusBar style="dark" backgroundColor="#F7FBF8" />
       <Head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -101,7 +113,7 @@ export default function RootLayout() {
           name="description"
           content="Track your vitamins, supplements, and medications daily. Build healthy streaks, view your history, and stay consistent — all in one app."
         />
-        <meta name="theme-color" content="#10B981" />
+        <meta name="theme-color" content="#F7FBF8" />
         <meta property="og:title" content="Supplement Tracker Pro" />
         <meta
           property="og:description"

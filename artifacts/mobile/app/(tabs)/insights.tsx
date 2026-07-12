@@ -10,8 +10,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { WeeklyChart } from "@/components/WeeklyChart";
+import { PremiumBackground } from "@/components/PremiumBackground";
 import { useSupplements } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
+import {
+  DAILY_TARGETS,
+  getInteractionTips,
+  sumNutrientsForDate,
+} from "@/utils/nutrients";
 
 function StatCard({
   icon,
@@ -66,6 +72,11 @@ const statStyles = StyleSheet.create({
     borderWidth: 1,
     gap: 4,
     alignItems: "flex-start",
+    shadowColor: "#397B61",
+    shadowOpacity: 0.09,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
   },
   iconWrap: {
     width: 36,
@@ -117,6 +128,16 @@ export default function InsightsScreen() {
     }));
   }, [supplements, doseLogs]);
 
+  const today = new Date().toISOString().split("T")[0]!;
+  const nutrientTotals = useMemo(
+    () => sumNutrientsForDate(supplements, doseLogs, today),
+    [supplements, doseLogs, today]
+  );
+  const interactionTips = useMemo(
+    () => getInteractionTips(supplements),
+    [supplements]
+  );
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -131,6 +152,7 @@ export default function InsightsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <PremiumBackground />
       <View
         style={[
           styles.header,
@@ -148,7 +170,7 @@ export default function InsightsScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad + 24 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad + 100 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.statRow}>
@@ -244,6 +266,84 @@ export default function InsightsScreen() {
           </View>
         )}
 
+        {Object.keys(nutrientTotals).length > 0 && (
+          <View
+            style={[
+              styles.section,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+              Today&apos;s Nutrient Totals
+            </Text>
+            {Object.entries(nutrientTotals).map(([key, amount]) => {
+              const target = DAILY_TARGETS[key as keyof typeof DAILY_TARGETS];
+              const pct = target
+                ? Math.min(100, Math.round((amount / target.amount) * 100))
+                : null;
+              return (
+                <View key={key} style={styles.catRow}>
+                  <Text style={[styles.catLabel, { color: colors.foreground, width: 90 }]}>
+                    {key}
+                  </Text>
+                  <View style={[styles.catBar, { backgroundColor: colors.border }]}>
+                    <View
+                      style={[
+                        styles.catFill,
+                        {
+                          width: `${pct ?? 40}%` as `${number}%`,
+                          backgroundColor: colors.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.catPct, { color: colors.mutedForeground, width: 64 }]}>
+                    {amount}
+                    {target ? `/${target.amount}` : ""}
+                  </Text>
+                </View>
+              );
+            })}
+            <Text style={[styles.disclaimer, { color: colors.mutedForeground }]}>
+              Educational estimates only — not medical advice.
+            </Text>
+          </View>
+        )}
+
+        {interactionTips.length > 0 && (
+          <View
+            style={[
+              styles.section,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+              Interaction Tips
+            </Text>
+            {interactionTips.map((tip) => (
+              <View key={tip.id} style={styles.tipItem}>
+                <Feather name="alert-circle" size={16} color={colors.warning} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[styles.tipTitle, { color: colors.foreground }]}>
+                    {tip.title}
+                  </Text>
+                  <Text style={[styles.tipBody, { color: colors.mutedForeground }]}>
+                    {tip.body}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         {profile.streak >= 7 && (
           <View
             style={[
@@ -296,7 +396,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingBottom: 14,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0,
   },
   title: {
     fontSize: 22,
@@ -310,9 +410,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   section: {
-    padding: 16,
+    padding: 18,
     borderWidth: 1,
     gap: 14,
+    shadowColor: "#397B61",
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
   },
   sectionTitle: {
     fontSize: 15,
@@ -379,5 +484,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_400Regular",
     lineHeight: 20,
+  },
+  tipItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  tipTitle: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+  },
+  tipBody: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 18,
+  },
+  disclaimer: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    marginTop: 4,
   },
 });

@@ -5,11 +5,14 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { Alert } from "react-native";
 
 import { FREE_SUPPLEMENT_LIMIT } from "@/constants/limits";
 import { scheduleSupplementNotifications } from "@/services/notifications";
+import { refreshPremiumFromStore } from "@/utils/premium";
 
 export type SupplementCategory =
   | "Vitamin"
@@ -49,7 +52,10 @@ export interface Supplement {
   remainingQuantity?: number;
   color: string;
   isActive: boolean;
+  remindersEnabled?: boolean;
+  nutrients?: Record<string, number>;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface DoseLog {
@@ -72,6 +78,8 @@ export interface UserProfile {
   xpPoints: number;
   isPremium: boolean;
   lastActiveDate?: string;
+  notificationsEnabled?: boolean;
+  email?: string;
 }
 
 export interface ScheduledDose {
@@ -88,9 +96,11 @@ interface SupplementContextValue {
   isLoading: boolean;
   canAddSupplement: boolean;
   freeSupplementLimit: number;
+  lowStockSupplements: Supplement[];
   addSupplement: (s: Omit<Supplement, "id" | "createdAt">) => Promise<void>;
   updateSupplement: (id: string, updates: Partial<Supplement>) => Promise<void>;
   deleteSupplement: (id: string) => Promise<void>;
+  setSupplementActive: (id: string, isActive: boolean) => Promise<void>;
   logDose: (
     supplementId: string,
     date: string,
@@ -101,6 +111,11 @@ interface SupplementContextValue {
   getDayAdherence: (date: string) => number;
   getWeekAdherence: () => number[];
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  replaceAllData: (data: {
+    supplements: Supplement[];
+    doseLogs: DoseLog[];
+    profile: UserProfile;
+  }) => Promise<void>;
   resetAllData: () => Promise<void>;
 }
 
@@ -118,7 +133,11 @@ const DEFAULT_PROFILE: UserProfile = {
   longestStreak: 0,
   xpPoints: 0,
   isPremium: false,
+  notificationsEnabled: true,
 };
+
+const LOW_STOCK_THRESHOLD = 7;
+const MISS_LOOKBACK_DAYS = 14;
 
 function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -128,19 +147,22 @@ function getTodayStr(): string {
   return new Date().toISOString().split("T")[0]!;
 }
 
-function isActiveOnDate(supplement: Supplement, dateStr: string): boolean {
-  const date = new Date(dateStr);
-  const start = new Date(supplement.startDate);
-  start.setHours(0, 0, 0, 0);
-  date.setHours(0, 0, 0, 0);
+function dateOffset(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().split("T")[0]!;
+}
+
+export function isActiveOnDate(supplement: Supplement, dateStr: string): boolean {
+  const date = new Date(dateStr + "T12:00:00");
+  const start = new Date(supplement.startDate + "T12:00:00");
   if (date < start) return false;
   if (supplement.endDate) {
-    const end = new Date(supplement.endDate);
-    end.setHours(0, 0, 0, 0);
+    const end = new Date(supplement.endDate + "T12:00:00");
     if (date > end) return false;
   }
   if (!supplement.isActive) return false;
-  const dow = new Date(dateStr).getDay();
+  const dow = date.getDay();
   switch (supplement.frequency) {
     case "once_daily":
     case "twice_daily":
@@ -148,14 +170,73 @@ function isActiveOnDate(supplement: Supplement, dateStr: string): boolean {
     case "custom_days":
       return supplement.customDays?.includes(dow) ?? true;
     case "weekly":
-      return dow === new Date(supplement.startDate).getDay();
+      return dow === new Date(supplement.startDate + "T12:00:00").getDay();
     case "monthly":
-      return (
-        new Date(dateStr).getDate() === new Date(supplement.startDate).getDate()
-      );
+      return date.getDate() === new Date(supplement.startDate + "T12:00:00").getDate();
     default:
       return true;
   }
+}
+
+function getScheduledDosesFromData(
+  sups: Supplement[],
+  logs: DoseLog[],
+  dateStr: string
+): ScheduledDose[] {
+  const doses: ScheduledDose[] = [];
+  for (const sup of sups) {
+    if (!isActiveOnDate(sup, dateStr)) continue;
+    for (const time of sup.times) {
+      const log = logs.find(
+        (l) =>
+          l.supplementId === sup.id &&
+          l.date === dateStr &&
+          l.scheduledTime === time
+      );
+      doses.push({ supplement: sup, time, date: dateStr, log });
+    }
+  }
+  doses.sort((a, b) => a.time.localeCompare(b.time));
+  return doses;
+}
+
+function hasTimePassed(dateStr: string, time: string, graceMinutes = 30): boolean {
+  const now = new Date();
+  const [h, m] = time.split(":").map((x) => parseInt(x ?? "0", 10));
+  const scheduled = new Date(`${dateStr}T00:00:00`);
+  scheduled.setHours(h ?? 8, m ?? 0, 0, 0);
+  scheduled.setMinutes(scheduled.getMinutes() + graceMinutes);
+  return now > scheduled;
+}
+
+function autoMarkMissed(sups: Supplement[], logs: DoseLog[]): DoseLog[] {
+  const byKey = new Map(
+    logs.map((l) => [`${l.supplementId}|${l.date}|${l.scheduledTime}`, l])
+  );
+  let changed = false;
+  const today = getTodayStr();
+
+  for (let i = 0; i < MISS_LOOKBACK_DAYS; i++) {
+    const dateStr = dateOffset(i);
+    for (const dose of getScheduledDosesFromData(sups, logs, dateStr)) {
+      const key = `${dose.supplement.id}|${dateStr}|${dose.time}`;
+      if (byKey.has(key)) continue;
+      if (!hasTimePassed(dateStr, dose.time)) continue;
+      // Don't mark future days; today only if time passed
+      if (dateStr > today) continue;
+      const missed: DoseLog = {
+        id: generateId(),
+        supplementId: dose.supplement.id,
+        date: dateStr,
+        scheduledTime: dose.time,
+        status: "missed",
+      };
+      byKey.set(key, missed);
+      changed = true;
+    }
+  }
+
+  return changed ? Array.from(byKey.values()) : logs;
 }
 
 export function SupplementProvider({
@@ -167,12 +248,15 @@ export function SupplementProvider({
   const [doseLogs, setDoseLogs] = useState<DoseLog[]>([]);
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [isLoading, setIsLoading] = useState(true);
+  const lowStockAlerted = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!isLoading) {
-      scheduleSupplementNotifications(supplements);
+      scheduleSupplementNotifications(supplements, {
+        enabled: profile.notificationsEnabled !== false,
+      });
     }
-  }, [supplements, isLoading]);
+  }, [supplements, isLoading, profile.notificationsEnabled]);
 
   useEffect(() => {
     async function load() {
@@ -182,10 +266,31 @@ export function SupplementProvider({
           AsyncStorage.getItem(STORAGE_KEYS.doseLogs),
           AsyncStorage.getItem(STORAGE_KEYS.profile),
         ]);
-        if (supsRaw) setSupplements(JSON.parse(supsRaw));
-        if (logsRaw) setDoseLogs(JSON.parse(logsRaw));
-        if (profileRaw)
-          setProfile({ ...DEFAULT_PROFILE, ...JSON.parse(profileRaw) });
+        const loadedSups: Supplement[] = supsRaw ? JSON.parse(supsRaw) : [];
+        let loadedLogs: DoseLog[] = logsRaw ? JSON.parse(logsRaw) : [];
+        const loadedProfile: UserProfile = profileRaw
+          ? { ...DEFAULT_PROFILE, ...JSON.parse(profileRaw) }
+          : DEFAULT_PROFILE;
+
+        loadedLogs = autoMarkMissed(loadedSups, loadedLogs);
+        setSupplements(loadedSups);
+        setDoseLogs(loadedLogs);
+        setProfile(loadedProfile);
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.doseLogs,
+          JSON.stringify(loadedLogs)
+        );
+
+        void refreshPremiumFromStore(async (v) => {
+          if (v && !loadedProfile.isPremium) {
+            const next = { ...loadedProfile, isPremium: true };
+            setProfile(next);
+            await AsyncStorage.setItem(
+              STORAGE_KEYS.profile,
+              JSON.stringify(next)
+            );
+          }
+        });
       } catch {
       } finally {
         setIsLoading(false);
@@ -193,6 +298,20 @@ export function SupplementProvider({
     }
     load();
   }, []);
+
+  // Periodically mark missed doses while app is open
+  useEffect(() => {
+    if (isLoading) return;
+    const tick = async () => {
+      const next = autoMarkMissed(supplements, doseLogs);
+      if (next !== doseLogs) {
+        setDoseLogs(next);
+        await AsyncStorage.setItem(STORAGE_KEYS.doseLogs, JSON.stringify(next));
+      }
+    };
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [supplements, doseLogs, isLoading]);
 
   const saveSupplements = useCallback(async (sups: Supplement[]) => {
     await AsyncStorage.setItem(STORAGE_KEYS.supplements, JSON.stringify(sups));
@@ -210,19 +329,35 @@ export function SupplementProvider({
   }, []);
 
   const canAddSupplement =
-    profile.isPremium || supplements.length < FREE_SUPPLEMENT_LIMIT;
+    profile.isPremium ||
+    supplements.filter((s) => s.isActive).length < FREE_SUPPLEMENT_LIMIT;
+
+  const lowStockSupplements = useMemo(
+    () =>
+      supplements.filter(
+        (s) =>
+          s.isActive &&
+          typeof s.remainingQuantity === "number" &&
+          s.remainingQuantity <= LOW_STOCK_THRESHOLD
+      ),
+    [supplements]
+  );
 
   const addSupplement = useCallback(
     async (s: Omit<Supplement, "id" | "createdAt">) => {
-      if (!profile.isPremium && supplements.length >= FREE_SUPPLEMENT_LIMIT) {
+      const activeCount = supplements.filter((x) => x.isActive).length;
+      if (!profile.isPremium && activeCount >= FREE_SUPPLEMENT_LIMIT) {
         throw new Error(
           `Free plan allows up to ${FREE_SUPPLEMENT_LIMIT} supplements. Upgrade to Premium for unlimited tracking.`
         );
       }
+      const now = new Date().toISOString();
       const newSup: Supplement = {
         ...s,
         id: generateId(),
-        createdAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
+        remindersEnabled: s.remindersEnabled ?? true,
       };
       await saveSupplements([...supplements, newSup]);
     },
@@ -232,7 +367,9 @@ export function SupplementProvider({
   const updateSupplement = useCallback(
     async (id: string, updates: Partial<Supplement>) => {
       const updated = supplements.map((s) =>
-        s.id === id ? { ...s, ...updates } : s
+        s.id === id
+          ? { ...s, ...updates, updatedAt: new Date().toISOString() }
+          : s
       );
       await saveSupplements(updated);
     },
@@ -244,6 +381,13 @@ export function SupplementProvider({
       await saveSupplements(supplements.filter((s) => s.id !== id));
     },
     [supplements, saveSupplements]
+  );
+
+  const setSupplementActive = useCallback(
+    async (id: string, isActive: boolean) => {
+      await updateSupplement(id, { isActive });
+    },
+    [updateSupplement]
   );
 
   const logDose = useCallback(
@@ -294,7 +438,10 @@ export function SupplementProvider({
               const yesterday = new Date();
               yesterday.setDate(yesterday.getDate() - 1);
               const yStr = yesterday.toISOString().split("T")[0]!;
-              if (profile.lastActiveDate === yStr || profile.lastActiveDate === today) {
+              if (
+                profile.lastActiveDate === yStr ||
+                profile.lastActiveDate === today
+              ) {
                 newProfile.streak = profile.streak + 1;
               } else {
                 newProfile.streak = 1;
@@ -310,32 +457,37 @@ export function SupplementProvider({
           }
         }
         await saveProfile(newProfile);
+
+        // Inventory depletion + low-stock alert
+        const idx = supplements.findIndex((s) => s.id === supplementId);
+        if (idx >= 0) {
+          const sup = supplements[idx]!;
+          if (typeof sup.remainingQuantity === "number") {
+            const remaining = Math.max(0, sup.remainingQuantity - 1);
+            const nextSups = [...supplements];
+            nextSups[idx] = {
+              ...sup,
+              remainingQuantity: remaining,
+              updatedAt: new Date().toISOString(),
+            };
+            await saveSupplements(nextSups);
+
+            if (
+              remaining <= LOW_STOCK_THRESHOLD &&
+              !lowStockAlerted.current.has(sup.id)
+            ) {
+              lowStockAlerted.current.add(sup.id);
+              Alert.alert(
+                "Low stock",
+                `${sup.name} has about ${remaining} dose${remaining === 1 ? "" : "s"} left. Time to refill?`
+              );
+            }
+          }
+        }
       }
     },
-    [doseLogs, supplements, profile, saveDoseLogs, saveProfile]
+    [doseLogs, supplements, profile, saveDoseLogs, saveProfile, saveSupplements]
   );
-
-  const getScheduledDosesFromData = (
-    sups: Supplement[],
-    logs: DoseLog[],
-    dateStr: string
-  ): ScheduledDose[] => {
-    const doses: ScheduledDose[] = [];
-    for (const sup of sups) {
-      if (!isActiveOnDate(sup, dateStr)) continue;
-      for (const time of sup.times) {
-        const log = logs.find(
-          (l) =>
-            l.supplementId === sup.id &&
-            l.date === dateStr &&
-            l.scheduledTime === time
-        );
-        doses.push({ supplement: sup, time, date: dateStr, log });
-      }
-    }
-    doses.sort((a, b) => a.time.localeCompare(b.time));
-    return doses;
-  };
 
   const getScheduledDoses = useCallback(
     (dateStr: string): ScheduledDose[] => {
@@ -373,6 +525,32 @@ export function SupplementProvider({
     [profile, saveProfile]
   );
 
+  const replaceAllData = useCallback(
+    async (data: {
+      supplements: Supplement[];
+      doseLogs: DoseLog[];
+      profile: UserProfile;
+    }) => {
+      const mergedProfile = { ...DEFAULT_PROFILE, ...data.profile };
+      const logs = autoMarkMissed(data.supplements, data.doseLogs);
+      await Promise.all([
+        AsyncStorage.setItem(
+          STORAGE_KEYS.supplements,
+          JSON.stringify(data.supplements)
+        ),
+        AsyncStorage.setItem(STORAGE_KEYS.doseLogs, JSON.stringify(logs)),
+        AsyncStorage.setItem(
+          STORAGE_KEYS.profile,
+          JSON.stringify(mergedProfile)
+        ),
+      ]);
+      setSupplements(data.supplements);
+      setDoseLogs(logs);
+      setProfile(mergedProfile);
+    },
+    []
+  );
+
   const resetAllData = useCallback(async () => {
     await Promise.all([
       AsyncStorage.setItem(STORAGE_KEYS.supplements, JSON.stringify([])),
@@ -385,10 +563,11 @@ export function SupplementProvider({
     setSupplements([]);
     setDoseLogs([]);
     setProfile(DEFAULT_PROFILE);
+    lowStockAlerted.current.clear();
     try {
       await scheduleSupplementNotifications([]);
     } catch {
-      // ignore notification cleanup failures
+      // ignore
     }
   }, []);
 
@@ -400,14 +579,17 @@ export function SupplementProvider({
       isLoading,
       canAddSupplement,
       freeSupplementLimit: FREE_SUPPLEMENT_LIMIT,
+      lowStockSupplements,
       addSupplement,
       updateSupplement,
       deleteSupplement,
+      setSupplementActive,
       logDose,
       getScheduledDoses,
       getDayAdherence,
       getWeekAdherence,
       updateProfile,
+      replaceAllData,
       resetAllData,
     }),
     [
@@ -416,14 +598,17 @@ export function SupplementProvider({
       profile,
       isLoading,
       canAddSupplement,
+      lowStockSupplements,
       addSupplement,
       updateSupplement,
       deleteSupplement,
+      setSupplementActive,
       logDose,
       getScheduledDoses,
       getDayAdherence,
       getWeekAdherence,
       updateProfile,
+      replaceAllData,
       resetAllData,
     ]
   );
@@ -437,6 +622,7 @@ export function SupplementProvider({
 
 export function useSupplements(): SupplementContextValue {
   const ctx = useContext(SupplementContext);
-  if (!ctx) throw new Error("useSupplements must be used within SupplementProvider");
+  if (!ctx)
+    throw new Error("useSupplements must be used within SupplementProvider");
   return ctx;
 }

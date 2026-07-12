@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SupplementCard } from "@/components/SupplementCard";
+import { PremiumBackground } from "@/components/PremiumBackground";
 import { type SupplementCategory, useSupplements } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
 import { promptFreeLimitReached } from "@/utils/premium";
@@ -33,6 +34,7 @@ export default function SupplementsScreen() {
   const {
     supplements,
     deleteSupplement,
+    setSupplementActive,
     doseLogs,
     canAddSupplement,
     updateProfile,
@@ -40,11 +42,13 @@ export default function SupplementsScreen() {
     profile,
   } = useSupplements();
   const [filter, setFilter] = useState<SupplementCategory | "All">("All");
+  const [showPaused, setShowPaused] = useState(false);
 
-  const filtered =
-    filter === "All"
-      ? supplements
-      : supplements.filter((s) => s.category === filter);
+  const filtered = supplements.filter((s) => {
+    if (!showPaused && !s.isActive) return false;
+    if (filter === "All") return true;
+    return s.category === filter;
+  });
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -89,6 +93,7 @@ export default function SupplementsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <PremiumBackground />
       <View
         style={[
           styles.header,
@@ -109,19 +114,31 @@ export default function SupplementsScreen() {
             </Text>
           )}
         </View>
-        <TouchableOpacity
-          onPress={openAdd}
-          style={[
-            styles.addBtn,
-            { backgroundColor: colors.primary, borderRadius: colors.radius },
-          ]}
-          activeOpacity={0.85}
-        >
-          <Feather name="plus" size={18} color={colors.primaryForeground} />
-          <Text style={[styles.addBtnText, { color: colors.primaryForeground }]}>
-            Add
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => router.push("/supplement-library")}
+            style={[
+              styles.libraryBtn,
+              { borderColor: colors.border, borderRadius: colors.radius },
+            ]}
+            activeOpacity={0.8}
+          >
+            <Feather name="book-open" size={18} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={openAdd}
+            style={[
+              styles.addBtn,
+              { backgroundColor: colors.primary, borderRadius: colors.radius },
+            ]}
+            activeOpacity={0.85}
+          >
+            <Feather name="plus" size={18} color={colors.primaryForeground} />
+            <Text style={[styles.addBtnText, { color: colors.primaryForeground }]}>
+              Add
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -161,13 +178,33 @@ export default function SupplementsScreen() {
             </Text>
           </TouchableOpacity>
         ))}
+        <TouchableOpacity
+          onPress={() => setShowPaused((v) => !v)}
+          style={[
+            styles.filterChip,
+            {
+              backgroundColor: showPaused ? colors.warning : colors.card,
+              borderColor: showPaused ? colors.warning : colors.border,
+              borderRadius: 20,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.filterText,
+              { color: showPaused ? "#fff" : colors.foreground },
+            ]}
+          >
+            Paused
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <ScrollView
         style={styles.list}
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: botPad + 24 },
+          { paddingBottom: botPad + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -196,6 +233,9 @@ export default function SupplementsScreen() {
                   })
                 }
                 onDelete={() => handleDelete(sup.id, sup.name)}
+                onToggleActive={() =>
+                  setSupplementActive(sup.id, !sup.isActive)
+                }
               />
             );
           })
@@ -213,7 +253,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingBottom: 14,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0,
   },
   title: {
     fontSize: 22,
@@ -224,6 +264,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_400Regular",
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  libraryBtn: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
   },
   addBtn: {
     flexDirection: "row",

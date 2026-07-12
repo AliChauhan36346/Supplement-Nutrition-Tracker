@@ -1,20 +1,14 @@
 import { Redirect } from "expo-router";
 import React from "react";
-import { ActivityIndicator, View } from "react-native";
 
+import { AppLaunchScreen } from "@/components/AppLaunchScreen";
 import { useSupplements } from "@/context/SupplementContext";
-import { useColors } from "@/hooks/useColors";
 
 export default function Index() {
   const { profile, isLoading } = useSupplements();
-  const colors = useColors();
 
   if (isLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
+    return <AppLaunchScreen />;
   }
 
   if (!profile.onboardingComplete) {

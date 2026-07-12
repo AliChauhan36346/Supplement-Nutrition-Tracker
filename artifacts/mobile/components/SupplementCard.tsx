@@ -9,6 +9,7 @@ interface SupplementCardProps {
   supplement: Supplement;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleActive?: () => void;
   adherence?: number;
 }
 
@@ -27,9 +28,13 @@ export function SupplementCard({
   supplement,
   onEdit,
   onDelete,
+  onToggleActive,
   adherence,
 }: SupplementCardProps) {
   const colors = useColors();
+  const lowStock =
+    typeof supplement.remainingQuantity === "number" &&
+    supplement.remainingQuantity <= 7;
 
   return (
     <TouchableOpacity
@@ -41,6 +46,7 @@ export function SupplementCard({
           backgroundColor: colors.card,
           borderColor: colors.border,
           borderRadius: colors.radius,
+          opacity: supplement.isActive ? 1 : 0.65,
         },
       ]}
     >
@@ -62,9 +68,24 @@ export function SupplementCard({
               </Text>
             ) : null}
           </View>
-          <TouchableOpacity onPress={onDelete} style={styles.deleteBtn} hitSlop={8}>
-            <Feather name="trash-2" size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            {onToggleActive && (
+              <TouchableOpacity
+                onPress={onToggleActive}
+                style={styles.deleteBtn}
+                hitSlop={8}
+              >
+                <Feather
+                  name={supplement.isActive ? "pause-circle" : "play-circle"}
+                  size={18}
+                  color={colors.mutedForeground}
+                />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={onDelete} style={styles.deleteBtn} hitSlop={8}>
+              <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.metaRow}>
           <View
@@ -77,6 +98,30 @@ export function SupplementCard({
               {supplement.category}
             </Text>
           </View>
+          {!supplement.isActive && (
+            <View
+              style={[
+                styles.badge,
+                { backgroundColor: colors.muted, borderRadius: 6 },
+              ]}
+            >
+              <Text style={[styles.badgeText, { color: colors.mutedForeground }]}>
+                Paused
+              </Text>
+            </View>
+          )}
+          {lowStock && (
+            <View
+              style={[
+                styles.badge,
+                { backgroundColor: colors.warning + "20", borderRadius: 6 },
+              ]}
+            >
+              <Text style={[styles.badgeText, { color: colors.warning }]}>
+                {supplement.remainingQuantity} left
+              </Text>
+            </View>
+          )}
           <Text style={[styles.meta, { color: colors.mutedForeground }]}>
             {supplement.dosage} {supplement.unit} · {frequencyLabel(supplement.frequency)}
           </Text>
@@ -113,9 +158,14 @@ export function SupplementCard({
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    marginBottom: 10,
+    marginBottom: 12,
     borderWidth: 1,
     overflow: "hidden",
+    shadowColor: "#397B61",
+    shadowOpacity: 0.10,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
   },
   colorBar: {
     width: 5,
@@ -146,6 +196,11 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     padding: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   metaRow: {
     flexDirection: "row",

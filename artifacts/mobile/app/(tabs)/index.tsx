@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useMemo } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Platform,
   ScrollView,
@@ -11,7 +12,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AnimatedEntrance } from "@/components/AnimatedEntrance";
 import { DoseItem } from "@/components/DoseItem";
+import { PremiumBackground } from "@/components/PremiumBackground";
 import { ProgressRing } from "@/components/ProgressRing";
 import { useSupplements } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
@@ -27,6 +30,8 @@ function getGreeting(): string {
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { highlightId } = useLocalSearchParams<{ highlightId?: string }>();
+  const [activeHighlight, setActiveHighlight] = useState<string | undefined>();
   const {
     getScheduledDoses,
     getDayAdherence,
@@ -35,7 +40,16 @@ export default function HomeScreen() {
     supplements,
     canAddSupplement,
     updateProfile,
+    lowStockSupplements,
   } = useSupplements();
+
+  useEffect(() => {
+    if (highlightId) {
+      setActiveHighlight(highlightId);
+      const t = setTimeout(() => setActiveHighlight(undefined), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [highlightId]);
 
   const today = new Date().toISOString().split("T")[0]!;
   const doses = useMemo(() => getScheduledDoses(today), [getScheduledDoses, today]);
@@ -45,6 +59,7 @@ export default function HomeScreen() {
   const pending = doses.filter((d) => !d.log);
   const completed = doses.filter((d) => d.log?.status === "taken");
   const skipped = doses.filter((d) => d.log?.status === "skipped");
+  const missed = doses.filter((d) => d.log?.status === "missed");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -59,7 +74,7 @@ export default function HomeScreen() {
 
   function openCoach() {
     if (!profile.isPremium) {
-      showPremiumUpsell(() => updateProfile({ isPremium: true }));
+      void showPremiumUpsell(() => updateProfile({ isPremium: true }));
       return;
     }
     router.push("/ai-coach");
@@ -67,6 +82,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <PremiumBackground />
       <View
         style={[
           styles.header,
@@ -110,10 +126,57 @@ export default function HomeScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad + 24 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.statsRow}>
+        <AnimatedEntrance>
+          <LinearGradient
+            colors={["#21AC79", "#84CF5B"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            <View style={styles.heroGloss} />
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroEyebrow}>TODAY&apos;S BALANCE</Text>
+              <Text style={styles.heroTitle}>
+                {completed.length === doses.length && doses.length > 0
+                  ? "Daily ritual complete"
+                  : `${completed.length} of ${doses.length} doses complete`}
+              </Text>
+              <Text style={styles.heroSub}>
+                {pending.length
+                  ? `${pending.length} remaining · keep your momentum`
+                  : "A consistent routine supports lasting progress"}
+              </Text>
+            </View>
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroPct}>{pct}%</Text>
+              <Feather name="activity" size={15} color="#FFFFFF" />
+            </View>
+          </LinearGradient>
+        </AnimatedEntrance>
+
+        {lowStockSupplements.length > 0 && (
+          <View
+            style={[
+              styles.lowStockBanner,
+              {
+                backgroundColor: colors.warning + "18",
+                borderColor: colors.warning + "50",
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
+            <Feather name="alert-circle" size={18} color={colors.warning} />
+            <Text style={[styles.lowStockText, { color: colors.foreground }]}>
+              Low stock:{" "}
+              {lowStockSupplements.map((s) => s.name).join(", ")}
+            </Text>
+          </View>
+        )}
+
+        <AnimatedEntrance delay={70} style={styles.statsRow}>
           <View
             style={[
               styles.streakCard,
@@ -170,9 +233,9 @@ export default function HomeScreen() {
               XP Points
             </Text>
           </View>
-        </View>
+        </AnimatedEntrance>
 
-        <View style={styles.doseCountRow}>
+        <AnimatedEntrance delay={150} style={styles.doseCountRow}>
           <View
             style={[
               styles.doseCount,
@@ -206,13 +269,13 @@ export default function HomeScreen() {
             ]}
           >
             <Text style={[styles.doseCountNum, { color: colors.mutedForeground }]}>
-              {skipped.length}
+              {skipped.length + missed.length}
             </Text>
             <Text style={[styles.doseCountLabel, { color: colors.mutedForeground }]}>
-              Skipped
+              Skipped/Missed
             </Text>
           </View>
-        </View>
+        </AnimatedEntrance>
 
         {doses.length === 0 ? (
           <View
@@ -259,6 +322,7 @@ export default function HomeScreen() {
               <DoseItem
                 key={`${dose.supplement.id}-${dose.time}`}
                 dose={dose}
+                highlighted={activeHighlight === dose.supplement.id}
                 onTake={() =>
                   logDose(dose.supplement.id, today, dose.time, "taken")
                 }
@@ -298,7 +362,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingBottom: 14,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0,
   },
   headerLeft: { gap: 2 },
   greeting: {
@@ -326,6 +390,73 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 16 },
+  heroCard: {
+    minHeight: 144,
+    borderRadius: 26,
+    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    overflow: "hidden",
+    shadowColor: "#198A61",
+    shadowOpacity: 0.24,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 11 },
+    elevation: 8,
+  },
+  heroGloss: {
+    position: "absolute",
+    width: 230,
+    height: 90,
+    borderRadius: 50,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    top: -42,
+    right: -30,
+    transform: [{ rotate: "-10deg" }],
+  },
+  heroCopy: { flex: 1, gap: 6, paddingRight: 12 },
+  heroEyebrow: {
+    color: "rgba(255,255,255,0.74)",
+    fontSize: 10,
+    letterSpacing: 1.2,
+    fontFamily: "Inter_700Bold",
+  },
+  heroTitle: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    lineHeight: 27,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.5,
+  },
+  heroSub: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: "Inter_400Regular",
+  },
+  heroBadge: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.36)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  heroPct: { color: "#FFFFFF", fontSize: 20, fontFamily: "Inter_700Bold" },
+  lowStockBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderWidth: 1,
+  },
+  lowStockText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
   statsRow: {
     flexDirection: "row",
     gap: 10,
@@ -336,12 +467,22 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     gap: 4,
+    shadowColor: "#397B61",
+    shadowOpacity: 0.10,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
   },
   ringCard: {
     flex: 1,
     alignItems: "center",
     padding: 14,
     borderWidth: 1,
+    shadowColor: "#397B61",
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
   },
   xpCard: {
     flex: 1,
@@ -349,6 +490,11 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     gap: 4,
+    shadowColor: "#397B61",
+    shadowOpacity: 0.10,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
   },
   streakNum: {
     fontSize: 22,
@@ -368,6 +514,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     gap: 2,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.88)",
   },
   doseCountNum: {
     fontSize: 20,

@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import React from "react";
-import { Animated, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Reanimated, {
   useAnimatedStyle,
   useSharedValue,
@@ -14,6 +14,7 @@ interface DoseItemProps {
   dose: ScheduledDose;
   onTake: () => void;
   onSkip: () => void;
+  highlighted?: boolean;
 }
 
 function formatTime(time: string): string {
@@ -34,7 +35,7 @@ function mealLabel(timing: string): string {
   }
 }
 
-export function DoseItem({ dose, onTake, onSkip }: DoseItemProps) {
+export function DoseItem({ dose, onTake, onSkip, highlighted }: DoseItemProps) {
   const colors = useColors();
   const scale = useSharedValue(1);
 
@@ -54,11 +55,12 @@ export function DoseItem({ dose, onTake, onSkip }: DoseItemProps) {
 
   const isTaken = dose.log?.status === "taken";
   const isSkipped = dose.log?.status === "skipped";
-  const isDone = isTaken || isSkipped;
+  const isMissed = dose.log?.status === "missed";
+  const isDone = isTaken || isSkipped || isMissed;
 
   const dotColor = isTaken
     ? colors.success
-    : isSkipped
+    : isSkipped || isMissed
     ? colors.mutedForeground
     : dose.supplement.color;
 
@@ -69,9 +71,14 @@ export function DoseItem({ dose, onTake, onSkip }: DoseItemProps) {
           styles.container,
           {
             backgroundColor: colors.card,
-            borderColor: isTaken ? colors.primary + "40" : colors.border,
+            borderColor: highlighted
+              ? colors.primary
+              : isTaken
+                ? colors.primary + "40"
+                : colors.border,
+            borderWidth: highlighted ? 2 : 1,
             borderRadius: colors.radius,
-            opacity: isSkipped ? 0.6 : 1,
+            opacity: isSkipped || isMissed ? 0.6 : 1,
           },
         ]}
       >
@@ -82,7 +89,7 @@ export function DoseItem({ dose, onTake, onSkip }: DoseItemProps) {
               styles.name,
               {
                 color: colors.foreground,
-                textDecorationLine: isSkipped ? "line-through" : "none",
+                textDecorationLine: isSkipped || isMissed ? "line-through" : "none",
               },
             ]}
           >
@@ -135,7 +142,9 @@ export function DoseItem({ dose, onTake, onSkip }: DoseItemProps) {
               {
                 backgroundColor: isTaken
                   ? colors.primary + "20"
-                  : colors.muted,
+                  : isMissed
+                    ? colors.error + "20"
+                    : colors.muted,
                 borderRadius: colors.radius / 2,
               },
             ]}
@@ -143,10 +152,16 @@ export function DoseItem({ dose, onTake, onSkip }: DoseItemProps) {
             <Text
               style={[
                 styles.statusText,
-                { color: isTaken ? colors.primary : colors.mutedForeground },
+                {
+                  color: isTaken
+                    ? colors.primary
+                    : isMissed
+                      ? colors.error
+                      : colors.mutedForeground,
+                },
               ]}
             >
-              {isTaken ? "Taken" : "Skipped"}
+              {isTaken ? "Taken" : isMissed ? "Missed" : "Skipped"}
             </Text>
           </View>
         )}
@@ -163,6 +178,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     gap: 12,
+    shadowColor: "#397B61",
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   dot: {
     width: 12,

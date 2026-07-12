@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CalendarGrid } from "@/components/CalendarGrid";
 import { DoseItem } from "@/components/DoseItem";
+import { PremiumBackground } from "@/components/PremiumBackground";
 import { useSupplements } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -33,6 +34,7 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <PremiumBackground />
       <View
         style={[
           styles.header,
@@ -50,7 +52,7 @@ export default function CalendarScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad + 24 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad + 100 }]}
         showsVerticalScrollIndicator={false}
       >
         <View
@@ -138,7 +140,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingBottom: 14,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0,
   },
   title: {
     fontSize: 22,
@@ -148,8 +150,13 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 16 },
   calCard: {
-    padding: 16,
+    padding: 18,
     borderWidth: 1,
+    shadowColor: "#397B61",
+    shadowOpacity: 0.11,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
   },
   dayDetail: {
     gap: 10,

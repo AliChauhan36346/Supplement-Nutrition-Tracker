@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   ScrollView,
@@ -13,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { PremiumBackground } from "@/components/PremiumBackground";
 import {
   type FrequencyType,
   type MealTiming,
@@ -20,9 +22,11 @@ import {
   type SupplementCategory,
   useSupplements,
 } from "@/context/SupplementContext";
+import { getCatalogItem } from "@/data/supplementCatalog";
 import { useColors } from "@/hooks/useColors";
 import { promptFreeLimitReached, showPremiumUpsell } from "@/utils/premium";
 import { consumeScanResult } from "@/utils/scanStore";
+import { NUTRIENT_OPTIONS, type NutrientKey } from "@/utils/nutrients";
 
 const CATEGORIES: SupplementCategory[] = [
   "Vitamin", "Mineral", "Protein", "Herb", "Medication", "Other",
@@ -118,7 +122,10 @@ function Picker<T extends string>({
 export default function AddSupplementScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, templateId } = useLocalSearchParams<{
+    id?: string;
+    templateId?: string;
+  }>();
   const {
     supplements,
     addSupplement,
@@ -128,20 +135,49 @@ export default function AddSupplementScreen() {
     updateProfile,
   } = useSupplements();
   const existing = supplements.find((s) => s.id === id);
+  const template = !existing ? getCatalogItem(templateId) : undefined;
 
-  const [name, setName] = useState(existing?.name ?? "");
+  const [name, setName] = useState(existing?.name ?? template?.name ?? "");
   const [brand, setBrand] = useState(existing?.brand ?? "");
-  const [category, setCategory] = useState<SupplementCategory>(existing?.category ?? "Vitamin");
+  const [category, setCategory] = useState<SupplementCategory>(
+    existing?.category ?? template?.category ?? "Vitamin"
+  );
   const [dosage, setDosage] = useState(existing?.dosage ?? "");
-  const [unit, setUnit] = useState(existing?.unit ?? "mg");
+  const [unit, setUnit] = useState(existing?.unit ?? template?.defaultUnit ?? "mg");
   const [frequency, setFrequency] = useState<FrequencyType>(existing?.frequency ?? "once_daily");
   const [customDays, setCustomDays] = useState<number[]>(existing?.customDays ?? [1, 2, 3, 4, 5]);
-  const [times, setTimes] = useState<string[]>(existing?.times ?? ["08:00"]);
-  const [mealTiming, setMealTiming] = useState<MealTiming>(existing?.mealTiming ?? "anytime");
-  const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [times, setTimes] = useState<string[]>(
+    existing?.times ?? [template?.defaultTime ?? "08:00"]
+  );
+  const [mealTiming, setMealTiming] = useState<MealTiming>(
+    existing?.mealTiming ?? template?.mealTiming ?? "anytime"
+  );
+  const [notes, setNotes] = useState(
+    existing?.notes ??
+      (template
+        ? `${template.timing}\n\nCaution: ${template.caution}`
+        : "")
+  );
   const [bottleQty, setBottleQty] = useState(String(existing?.bottleQuantity ?? ""));
   const [color, setColor] = useState(existing?.color ?? SUPPLEMENT_COLORS[0]!);
+  const [isActive, setIsActive] = useState(existing?.isActive ?? true);
+  const [remindersEnabled, setRemindersEnabled] = useState(
+    existing?.remindersEnabled ?? true
+  );
+  const [nutrients, setNutrients] = useState<Partial<Record<NutrientKey, string>>>(
+    () => {
+      const initial: Partial<Record<NutrientKey, string>> = {};
+      const source = existing?.nutrients ?? template?.nutrients;
+      if (source) {
+        for (const [k, v] of Object.entries(source)) {
+          initial[k as NutrientKey] = String(v);
+        }
+      }
+      return initial;
+    }
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -173,15 +209,29 @@ export default function AddSupplementScreen() {
   }
 
   async function handleSave() {
+    if (isSaving) return;
     if (!validate()) return;
     if (!existing && !canAddSupplement) {
       promptFreeLimitReached(() => updateProfile({ isPremium: true }));
       return;
     }
+    setIsSaving(true);
     const getDefaultTimes = (): string[] => {
-      if (frequency === "twice_daily") return ["08:00", "20:00"];
-      return times;
+      if (frequency === "twice_daily") {
+        return [
+          times[0]?.trim() || "08:00",
+          times[1]?.trim() || "20:00",
+        ];
+      }
+      return [times[0]?.trim() || "08:00"];
     };
+    const nutrientMap: Record<string, number> = {};
+    for (const key of NUTRIENT_OPTIONS) {
+      const raw = nutrients[key]?.trim();
+      if (!raw) continue;
+      const n = Number(raw);
+      if (!Number.isNaN(n) && n > 0) nutrientMap[key] = n;
+    }
     const data: Omit<Supplement, "id" | "createdAt"> = {
       name: name.trim(),
       brand: brand.trim() || undefined,
@@ -197,10 +247,14 @@ export default function AddSupplementScreen() {
       endDate: existing?.endDate,
       bottleQuantity: bottleQty ? Number(bottleQty) : undefined,
       remainingQuantity: bottleQty
-        ? Number(bottleQty)
+        ? existing && existing.bottleQuantity === Number(bottleQty)
+          ? existing.remainingQuantity
+          : Number(bottleQty)
         : existing?.remainingQuantity,
       color,
-      isActive: true,
+      isActive,
+      remindersEnabled,
+      nutrients: Object.keys(nutrientMap).length ? nutrientMap : undefined,
     };
     try {
       if (existing) {
@@ -214,6 +268,8 @@ export default function AddSupplementScreen() {
         "Could not save",
         err instanceof Error ? err.message : "Please try again."
       );
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -231,6 +287,7 @@ export default function AddSupplementScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <PremiumBackground />
       <View
         style={[
           styles.header,
@@ -249,15 +306,24 @@ export default function AddSupplementScreen() {
         </Text>
         <TouchableOpacity
           onPress={handleSave}
+          disabled={isSaving}
           style={[
             styles.saveBtn,
-            { backgroundColor: colors.primary, borderRadius: colors.radius },
+            {
+              backgroundColor: colors.primary,
+              borderRadius: colors.radius,
+              opacity: isSaving ? 0.75 : 1,
+            },
           ]}
           activeOpacity={0.85}
         >
-          <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>
-            Save
-          </Text>
+          {isSaving ? (
+            <ActivityIndicator size="small" color={colors.primaryForeground} />
+          ) : (
+            <Text style={[styles.saveBtnText, { color: colors.primaryForeground }]}>
+              Save
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -466,7 +532,58 @@ export default function AddSupplementScreen() {
           </View>
         )}
 
-        {frequency !== "twice_daily" && (
+        {frequency === "twice_daily" ? (
+          <View style={styles.row}>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                Morning
+              </Text>
+              <TextInput
+                value={times[0] ?? "08:00"}
+                onChangeText={(v) => {
+                  const next = [...times];
+                  next[0] = v;
+                  if (!next[1]) next[1] = "20:00";
+                  setTimes(next);
+                }}
+                placeholder="08:00"
+                placeholderTextColor={colors.mutedForeground}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                    borderRadius: colors.radius / 2,
+                  },
+                ]}
+              />
+            </View>
+            <View style={[styles.field, { flex: 1 }]}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+                Evening
+              </Text>
+              <TextInput
+                value={times[1] ?? "20:00"}
+                onChangeText={(v) => {
+                  const next = [times[0] ?? "08:00", v];
+                  setTimes(next);
+                }}
+                placeholder="20:00"
+                placeholderTextColor={colors.mutedForeground}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                    borderRadius: colors.radius / 2,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        ) : (
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
               Time
@@ -496,6 +613,130 @@ export default function AddSupplementScreen() {
           onChange={setMealTiming}
         />
 
+        {existing && (
+          <View style={styles.field}>
+            <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+              Status
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => setIsActive(true)}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: isActive ? colors.primary : colors.card,
+                    borderColor: isActive ? colors.primary : colors.border,
+                    borderRadius: 20,
+                    borderWidth: 1,
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: isActive
+                      ? colors.primaryForeground
+                      : colors.foreground,
+                    fontFamily: "Inter_500Medium",
+                    fontSize: 13,
+                  }}
+                >
+                  Active
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setIsActive(false)}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: !isActive ? colors.warning : colors.card,
+                    borderColor: !isActive ? colors.warning : colors.border,
+                    borderRadius: 20,
+                    borderWidth: 1,
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: !isActive ? "#fff" : colors.foreground,
+                    fontFamily: "Inter_500Medium",
+                    fontSize: 13,
+                  }}
+                >
+                  Paused
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+            Reminders
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => setRemindersEnabled(true)}
+              style={[
+                styles.chip,
+                {
+                  backgroundColor: remindersEnabled
+                    ? colors.primary
+                    : colors.card,
+                  borderColor: remindersEnabled
+                    ? colors.primary
+                    : colors.border,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: remindersEnabled
+                    ? colors.primaryForeground
+                    : colors.foreground,
+                  fontFamily: "Inter_500Medium",
+                  fontSize: 13,
+                }}
+              >
+                On
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setRemindersEnabled(false)}
+              style={[
+                styles.chip,
+                {
+                  backgroundColor: !remindersEnabled
+                    ? colors.muted
+                    : colors.card,
+                  borderColor: colors.border,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: colors.foreground,
+                  fontFamily: "Inter_500Medium",
+                  fontSize: 13,
+                }}
+              >
+                Off
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.field}>
           <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
             Bottle Quantity (optional)
@@ -516,6 +757,51 @@ export default function AddSupplementScreen() {
               },
             ]}
           />
+          {existing?.remainingQuantity != null && (
+            <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+              Remaining: {existing.remainingQuantity}
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>
+            Nutrients (optional, for daily totals)
+          </Text>
+          {NUTRIENT_OPTIONS.map((key) => (
+            <View key={key} style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+              <Text
+                style={{
+                  width: 100,
+                  fontSize: 12,
+                  color: colors.mutedForeground,
+                  fontFamily: "Inter_400Regular",
+                }}
+              >
+                {key}
+              </Text>
+              <TextInput
+                value={nutrients[key] ?? ""}
+                onChangeText={(v) =>
+                  setNutrients((prev) => ({ ...prev, [key]: v }))
+                }
+                placeholder="amount"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="decimal-pad"
+                style={[
+                  styles.input,
+                  {
+                    flex: 1,
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    color: colors.foreground,
+                    borderRadius: colors.radius / 2,
+                    paddingVertical: 8,
+                  },
+                ]}
+              />
+            </View>
+          ))}
         </View>
 
         <View style={styles.field}>
@@ -576,7 +862,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingBottom: 12,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0,
     gap: 12,
   },
   headerTitle: {

@@ -5,7 +5,7 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -21,7 +21,7 @@ function NativeTabLayout() {
         <Label>Supplements</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="calendar">
-        <Icon sf={{ default: "calendar", selected: "calendar.fill" }} />
+          <Icon sf={{ default: "calendar", selected: "calendar" }} />
         <Label>History</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="insights">
@@ -38,8 +38,6 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -51,17 +49,30 @@ function ClassicTabLayout() {
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
+          left: 14,
+          right: 14,
+          bottom: isWeb ? 10 : 12,
+          height: isWeb ? 72 : 68,
+          paddingTop: 8,
+          paddingBottom: isWeb ? 8 : 10,
+          borderRadius: 24,
           backgroundColor: isIOS ? "transparent" : colors.tabBar,
           borderTopWidth: 1,
           borderTopColor: colors.border,
-          elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.85)",
+          shadowColor: "#397B61",
+          shadowOpacity: 0.16,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 12,
+          overflow: "hidden",
         },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
+              intensity={90}
+              tint="light"
               style={StyleSheet.absoluteFill}
             />
           ) : isWeb ? (
