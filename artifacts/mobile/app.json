@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.suptracker.pro",
+      "bundleIdentifier": "com.vitaroutine.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Supplement Tracker to access your camera to scan supplement barcodes.",
         "NSUserNotificationsUsageDescription": "Allow Supplement Tracker to send reminders when it is time to take your supplements."
       }
     },
     "android": {
-      "package": "com.suptracker.pro",
+      "package": "com.vitaroutine.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#F7FBF8"
@@ -32,7 +32,10 @@
         "POST_NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "SCHEDULE_EXACT_ALARM"
+        "SCHEDULE_EXACT_ALARM",
+        "BILLING",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -65,14 +68,15 @@
         }
       ]
     ],
-    "extra": {
-      "eas": {
-        "projectId": "replace-with-eas-project-id"
-      }
-    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "43bc5a4b-e641-45d6-b5fb-af8c68fe7614"
+      }
+    },
+    "owner": "aliabbas346"
   }
 }

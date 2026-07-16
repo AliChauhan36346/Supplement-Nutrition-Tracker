@@ -2,7 +2,7 @@
  * Google Play + RevenueCat billing config.
  *
  * Play Console:
- *   Subscription product ID: com.suptracker.pro.premium
+ *   Subscription product ID: com.vitaroutine.app.premium
  *   Base plan ID:            monthly
  *   Offer:                   30-day free trial, then recurring monthly
  *
@@ -14,7 +14,7 @@
 export const PREMIUM_ENTITLEMENT_ID = "premium";
 
 /** Play subscription product ID (Subscriptions, not one-time IAP). */
-export const PREMIUM_PRODUCT_ID = "com.suptracker.pro.premium";
+export const PREMIUM_PRODUCT_ID = "com.vitaroutine.app.premium";
 
 /** Play base plan ID under that subscription. */
 export const PREMIUM_BASE_PLAN_ID = "monthly";
