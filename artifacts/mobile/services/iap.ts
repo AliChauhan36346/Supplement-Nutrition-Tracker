@@ -2,8 +2,7 @@ import { Alert, Platform } from "react-native";
 
 import {
   PREMIUM_ENTITLEMENT_ID,
-  PREMIUM_PRODUCT_ID,
-  PREMIUM_STORE_IDENTIFIER,
+  IAP_PRODUCTS,
   PREMIUM_TRIAL_DAYS,
 } from "@/constants/iap";
 
@@ -24,7 +23,6 @@ export type PremiumPackageInfo = {
 };
 
 function revenueCatApiKey(): string | undefined {
-  // Prefer platform-specific Google key; fall back to generic.
   if (Platform.OS === "android") {
     return (
       process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY ||
@@ -51,7 +49,26 @@ async function getPurchasesModule(): Promise<any | null> {
   }
 }
 
+async function getPurchasesUIModule(): Promise<any | null> {
+  if (Platform.OS === "web") return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require("react-native-purchases-ui");
+    return mod?.default ?? mod;
+  } catch {
+    return null;
+  }
+}
+
 let configured = false;
+const premiumStatusListeners = new Set<(isPremium: boolean) => void>();
+
+function notifyPremiumStatus(customerInfo: {
+  entitlements?: { active?: Record<string, unknown> };
+}) {
+  const isPremium = hasPremium(customerInfo);
+  for (const listener of premiumStatusListeners) listener(isPremium);
+}
 
 export async function configureIAP(): Promise<void> {
   if (configured || Platform.OS === "web") return;
@@ -61,6 +78,9 @@ export async function configureIAP(): Promise<void> {
   if (!Purchases) return;
   try {
     Purchases.configure({ apiKey });
+    if (typeof Purchases.addCustomerInfoUpdateListener === "function") {
+      Purchases.addCustomerInfoUpdateListener(notifyPremiumStatus);
+    }
     configured = true;
   } catch {
     // Expo Go / missing native module — ignore
@@ -79,23 +99,11 @@ function pickPremiumPackage(offerings: any): any | null {
 
   const packages = current.availablePackages as any[];
 
-  const byStoreId = packages.find(
-    (p) =>
-      p.product?.identifier === PREMIUM_STORE_IDENTIFIER ||
-      p.product?.identifier === PREMIUM_PRODUCT_ID ||
-      String(p.product?.identifier ?? "").includes(PREMIUM_PRODUCT_ID)
-  );
-  if (byStoreId) return byStoreId;
-
+  // Try to find monthly first as the default
   const monthly = packages.find(
     (p) =>
       p.packageType === "MONTHLY" ||
-      String(p.identifier ?? "")
-        .toLowerCase()
-        .includes("monthly") ||
-      String(p.product?.identifier ?? "")
-        .toLowerCase()
-        .includes("monthly")
+      String(p.identifier ?? "").toLowerCase().includes("monthly")
   );
   return monthly ?? packages[0] ?? null;
 }
@@ -123,6 +131,7 @@ export async function getPremiumPackageInfo(): Promise<PremiumPackageInfo | null
   }
 }
 
+/** Presents the RevenueCat Paywall overlay */
 export async function purchasePremium(): Promise<PurchaseResult> {
   await configureIAP();
   const apiKey = revenueCatApiKey();
@@ -137,48 +146,71 @@ export async function purchasePremium(): Promise<PurchaseResult> {
   if (!apiKey) {
     return {
       status: "unavailable",
-      message:
-        "Missing RevenueCat Google API key. Set EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY (starts with goog_).",
+      message: "Missing RevenueCat API key.",
     };
   }
 
-  const Purchases = await getPurchasesModule();
-  if (!Purchases) {
+  const PurchasesUI = await getPurchasesUIModule();
+  if (!PurchasesUI) {
     return {
       status: "unavailable",
       message:
-        "Billing needs an EAS/dev build with react-native-purchases (Expo Go cannot subscribe).",
+        "Billing UI needs a Dev client build with react-native-purchases-ui.",
     };
   }
 
   try {
-    const offerings = await Purchases.getOfferings();
-    const pkg = pickPremiumPackage(offerings);
+    // Show native paywall configured in RevenueCat dashboard
+    const result = await PurchasesUI.presentPaywall();
 
-    if (!pkg) {
-      return {
-        status: "unavailable",
-        message: `No Premium offering found. In RevenueCat, attach ${PREMIUM_STORE_IDENTIFIER} to entitlement "${PREMIUM_ENTITLEMENT_ID}" and set an Offering as Current.`,
-      };
-    }
+    // Result can be PURCHASED, RESTORED, CANCELLED, etc.
+    if (result === "PURCHASED" || result === "RESTORED") {
+      const Purchases = await getPurchasesModule();
+      const customerInfo = await Purchases.getCustomerInfo();
 
-    const { customerInfo } = await Purchases.purchasePackage(pkg);
-    if (hasPremium(customerInfo)) {
       const ent = customerInfo.entitlements.active[PREMIUM_ENTITLEMENT_ID];
       const isTrial = Boolean(ent?.periodType === "TRIAL" || ent?.periodType === "INTRO");
+
       return { status: "purchased", isTrial };
     }
+
+    if (result === "CANCELLED") {
+      return { status: "cancelled" };
+    }
+
     return {
       status: "error",
-      message: `Purchase finished but entitlement "${PREMIUM_ENTITLEMENT_ID}" is not active.`,
+      message: "Purchase was not completed.",
     };
   } catch (err: unknown) {
-    const e = err as { userCancelled?: boolean; message?: string; code?: string };
+    const e = err as { userCancelled?: boolean; message?: string };
     if (e?.userCancelled) return { status: "cancelled" };
     return {
       status: "error",
       message: e?.message ?? "Purchase failed",
     };
+  }
+}
+
+/** Presents the RevenueCat Customer Center */
+export async function presentCustomerCenter(): Promise<void> {
+  await configureIAP();
+  const PurchasesUI = await getPurchasesUIModule();
+  if (!PurchasesUI) {
+    Alert.alert(
+      "Subscription Management",
+      "Customer Center needs a Dev client build."
+    );
+    return;
+  }
+  try {
+    await PurchasesUI.presentCustomerCenter();
+  } catch (err) {
+    console.error("Error opening Customer Center:", err);
+    Alert.alert(
+      "Subscription Management",
+      "Could not open subscription management at this time."
+    );
   }
 }
 
@@ -215,6 +247,31 @@ export async function checkPremiumEntitlement(): Promise<boolean> {
   }
 }
 
+/**
+ * Subscribe to RevenueCat entitlement changes while the app is running.
+ * Returns null when RevenueCat is unavailable, so callers do not accidentally
+ * downgrade a user during offline or Expo Go development.
+ */
+export async function getPremiumEntitlementStatus(): Promise<boolean | null> {
+  await configureIAP();
+  const Purchases = await getPurchasesModule();
+  if (!Purchases || !revenueCatApiKey()) return null;
+  try {
+    const info = await Purchases.getCustomerInfo();
+    return hasPremium(info);
+  } catch {
+    return null;
+  }
+}
+
+export function subscribeToPremiumStatus(
+  listener: (isPremium: boolean) => void
+): () => void {
+  premiumStatusListeners.add(listener);
+  void configureIAP();
+  return () => premiumStatusListeners.delete(listener);
+}
+
 export function explainIAPUnavailable(message: string, onDevUnlock?: () => void) {
   const buttons: {
     text: string;
@@ -229,5 +286,5 @@ export function explainIAPUnavailable(message: string, onDevUnlock?: () => void)
 
 export function premiumTrialCopy(priceString?: string): string {
   const price = priceString ? ` Then ${priceString}.` : " Then the regular subscription price.";
-  return `${PREMIUM_TRIAL_DAYS}-day free trial.${price} Cancel anytime in Google Play.`;
+  return `${PREMIUM_TRIAL_DAYS}-day free trial.${price} Cancel anytime.`;
 }

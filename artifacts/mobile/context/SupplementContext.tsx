@@ -12,7 +12,10 @@ import { Alert } from "react-native";
 
 import { FREE_SUPPLEMENT_LIMIT } from "@/constants/limits";
 import { scheduleSupplementNotifications } from "@/services/notifications";
-import { refreshPremiumFromStore } from "@/utils/premium";
+import {
+  refreshPremiumFromStore,
+  watchPremiumEntitlement,
+} from "@/utils/premium";
 
 export type SupplementCategory =
   | "Vitamin"
@@ -259,6 +262,24 @@ export function SupplementProvider({
   }, [supplements, isLoading, profile.notificationsEnabled]);
 
   useEffect(() => {
+    if (isLoading) return;
+    let mounted = true;
+    const unsubscribe = watchPremiumEntitlement(async (isPremium) => {
+      if (!mounted) return;
+      setProfile((current) => {
+        if (current.isPremium === isPremium) return current;
+        const next = { ...current, isPremium };
+        void AsyncStorage.setItem(STORAGE_KEYS.profile, JSON.stringify(next));
+        return next;
+      });
+    });
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [isLoading]);
+
+  useEffect(() => {
     async function load() {
       try {
         const [supsRaw, logsRaw, profileRaw] = await Promise.all([
@@ -281,15 +302,14 @@ export function SupplementProvider({
           JSON.stringify(loadedLogs)
         );
 
-        void refreshPremiumFromStore(async (v) => {
-          if (v && !loadedProfile.isPremium) {
-            const next = { ...loadedProfile, isPremium: true };
-            setProfile(next);
-            await AsyncStorage.setItem(
-              STORAGE_KEYS.profile,
-              JSON.stringify(next)
-            );
-          }
+        void refreshPremiumFromStore(async (isPremium) => {
+          if (isPremium === loadedProfile.isPremium) return;
+          const next = { ...loadedProfile, isPremium };
+          setProfile(next);
+          await AsyncStorage.setItem(
+            STORAGE_KEYS.profile,
+            JSON.stringify(next)
+          );
         });
       } catch {
       } finally {

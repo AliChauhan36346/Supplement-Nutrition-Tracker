@@ -17,7 +17,7 @@ import { PREMIUM_FEATURES } from "@/constants/limits";
 import { PremiumBackground } from "@/components/PremiumBackground";
 import { useSupplements } from "@/context/SupplementContext";
 import { useColors } from "@/hooks/useColors";
-import { restorePurchases } from "@/services/iap";
+import { presentCustomerCenter, restorePurchases } from "@/services/iap";
 import {
   getNotificationPermissionStatus,
   requestNotificationPermissions,
@@ -306,6 +306,23 @@ export default function ProfileScreen() {
             <Text style={[styles.premiumText, { color: colors.streak }]}>
               Premium
             </Text>
+          </View>
+        )}
+
+        {profile.isPremium && Platform.OS !== "web" && (
+          <View
+            style={[styles.settingsGroup, {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+            }]}
+          >
+            <SettingRow
+              icon="credit-card"
+              label="Manage subscription"
+              value="RevenueCat Customer Center"
+              onPress={() => void presentCustomerCenter()}
+            />
           </View>
         )}
 
